@@ -11,5 +11,4 @@ def main(page: ft.Page):
     )
     image_editing_view._load_main_image_with_path("/home/mmdark/Downloads/data (4)/data/output/Series003c4.tif") #select a image
     image_editing_view._update_mask_image()
-
 ft.run(main)

@@ -83,15 +83,65 @@ class ImageEditingView(ft.Column):
         self._mask_color = (255, 0, 0)
         self._outline_color = (0, 255, 0)
         self._opacity = 100
+        self._user_2_5d = False
         self.width=600
         self.expand=False
         self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN, visible=True,gapless_playback=True)
         self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN,gapless_playback=True)
-        self.drawing_tool = DrawingTool(on_cell_drawn=self.cell_drawn, on_cell_deleted=self.delete_cell)
+        self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image, self._mask_image, self.drawing_tool]))
-        self.control_row = ft.Row([#TODO:add controls
-                                                     ])
-        self.controls = [self.image_stack,self.control_row]
+        self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12),), on_click=lambda e: self._show_mask(),
+                                          tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=False)
+        self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.WHITE_60,
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          tooltip="Draw Mode", hover_color=ft.Colors.WHITE12,on_click=lambda e:self._toggle_draw())
+        self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.WHITE_60,
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          tooltip="Delete Mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
+        self._slider_2_5d = ft.Slider(
+            min=0, max=100, divisions=None, label="Slice: {value}",
+            opacity=1.0 if self._user_2_5d else 0.0, height=20,
+            active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
+            animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
+        )
+        self._slider_2d = ft.CupertinoSlidingSegmentedButton(
+            selected_index=0 if not self._user_2_5d else 1,
+            thumb_color=ft.Colors.WHITE,
+            bgcolor=ft.Colors.WHITE60,
+            padding=ft.padding.symmetric(0, 0),
+            controls=[
+                ft.Text("2D", color=ft.Colors.BLACK),
+                ft.Text("2.5D", color=ft.Colors.BLACK)
+            ],
+        )
+        self.control_tools = ft.Container(ft.Container(ft.Row(
+                [   self._edit_button,
+                    self._delete_button,
+                    self._mask_button,
+                    self._slider_2d,
+                    ft.Container(
+                        content=self._slider_2_5d,
+                        theme=ft.Theme(
+                            slider_theme=ft.SliderTheme(
+                                value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,weight=ft.FontWeight.BOLD),
+                            )
+                        ),
+                        dark_theme=ft.Theme(
+                            slider_theme=ft.SliderTheme(
+                                value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,weight=ft.FontWeight.BOLD),
+                            )
+                        ),
+                    ),
+                ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,
+            ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
+            ))
+        #TODO: ADD REDO/UNDO, MASK ID SHIFTING BUTTON
+        self.controls = [self.image_stack,self.control_tools]
+        self.spacing=0
 
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
@@ -142,10 +192,20 @@ class ImageEditingView(ft.Column):
                     outline = mask_data["outlines"]
                     self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color, self._opacity, slice_id=self._slice_id)
                     self._mask_image.update()
+                    if not self._mask_image.visible:
+                        self._mask_button.icon_color = ft.Colors.WHITE60
+                        self._mask_button.tooltip = "Show mask"
+                        self._mask_button.disabled = False
+                        self._mask_button.update()
                     return
 
         self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._mask_image.visible = False
         self._mask_image.update()
+        self._mask_button.tooltip = "Show mask"
+        self._mask_button.icon_color = ft.Colors.BLACK12
+        self._mask_button.disabled = True
+        self._mask_button.update()
 
     def _update_mask_image(self):
         if self._mask_path != "":
@@ -157,15 +217,34 @@ class ImageEditingView(ft.Column):
                                                                 self._opacity, slice_id=self._slice_id)
             self._mask_image.update()
 
-    def show_mask(self):
-        self._mask_image.visible = True
+    def _show_mask(self):
+        self._mask_image.visible = not self._mask_image.visible
         self._mask_image.update()
+        self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE60
+        self._mask_button.tooltip="Hide mask" if self._mask_image.visible else "Show mask"
+        self._mask_button.update()
 
-    def hide_mask(self):
-        self._mask_image.visible = False
-        self._mask_image.update()
+    def _toggle_draw(self):
+        self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color==ft.Colors.WHITE_60 else ft.Colors.WHITE60
+        self._edit_button.update()
+        if self._edit_button.icon_color==ft.Colors.WHITE:
+            self._delete_button.icon_color = ft.Colors.WHITE60
+            self._delete_button.update()
+            self.drawing_tool.draw()
+        else:
+            self.drawing_tool.deactivate_drawing()
 
-    def cell_drawn(self, lines_data: list):
+    def _toggle_delete(self):
+        self._delete_button.icon_color = ft.Colors.WHITE if self._delete_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
+        self._delete_button.update()
+        if self._delete_button.icon_color == ft.Colors.WHITE:
+            self._edit_button.icon_color = ft.Colors.WHITE60
+            self._edit_button.update()
+            self.drawing_tool.delete()
+        else:
+            self.drawing_tool.deactivate_delete()
+
+    def _cell_drawn(self, lines_data: list):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         line_pixels = set()
@@ -226,7 +305,7 @@ class ImageEditingView(ft.Column):
 
         self._update_mask_image()
 
-    def delete_cell(self, pos: tuple):
+    def _delete_cell(self, pos: tuple):
         #delete the cell in the mask data
         mask_data = np.load(self._mask_path, allow_pickle=True).item()
 
