@@ -79,7 +79,6 @@ class ImageEditingView(ft.Column):
         self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series003c4_seg.npy" #select a mask
         self._slice_id = -1
         self._main_paths = None
-        self._mask_shifting = False
         self._mask_color = (255, 0, 0)
         self._outline_color = (0, 255, 0)
         self._opacity = 100
@@ -118,8 +117,17 @@ class ImageEditingView(ft.Column):
                 ft.Text("2.5D", color=ft.Colors.BLACK)
             ],
         )
+        self._shifting_check_box = ft.IconButton(
+            icon=ft.Icons.EXPAND,
+            icon_color=ft.Colors.WHITE60,
+            selected_icon=ft.Icons.COMPRESS_ROUNDED,
+            selected_icon_color=ft.Colors.WHITE,
+            selected=False,
+            on_click=lambda e: self._toggle_shifting(e),
+        )
         self.control_tools = ft.Container(ft.Container(ft.Row(
-                [   self._edit_button,
+                [   self._shifting_check_box,
+                    self._edit_button,
                     self._delete_button,
                     self._mask_button,
                     self._slider_2d,
@@ -139,7 +147,7 @@ class ImageEditingView(ft.Column):
                 ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,
             ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
             ))
-        #TODO: ADD REDO/UNDO, MASK ID SHIFTING BUTTON
+        #TODO: ADD REDO/UNDO
         self.controls = [self.image_stack,self.control_tools]
         self.spacing=0
 
@@ -244,6 +252,15 @@ class ImageEditingView(ft.Column):
         else:
             self.drawing_tool.deactivate_delete()
 
+    def _toggle_shifting(self,e):
+        e.control.selected = not e.control.selected
+        if e.control.selected:
+            e.control.tooltip = "Shifting IDs: ON \n(Shifts the IDs when a mask is deleted to restore an order without gaps.)"
+        else:
+            e.control.tooltip = "Shifting IDs: OFF \n(Deleted masks will leave gaps in the order of the IDs. No shifting will occur.)"
+
+        e.control.update()
+
     def _cell_drawn(self, lines_data: list):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
@@ -332,7 +349,7 @@ class ImageEditingView(ft.Column):
         cell_outline = (outline == cell_id).copy()
         mask[cell_mask] = 0
         outline[cell_outline] = 0
-        if self._mask_shifting:
+        if self._shifting_check_box.selected:
             mask_shifting(mask_data, cell_id, self._slice_id)
 
         # Save new state after deletion
