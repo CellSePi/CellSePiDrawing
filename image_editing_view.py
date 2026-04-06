@@ -120,6 +120,9 @@ class ImageEditingView(ft.Column):
         self._shifting_check_box = ft.IconButton(
             icon=ft.Icons.EXPAND,
             icon_color=ft.Colors.WHITE60,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=12),),
+            hover_color=ft.Colors.WHITE12,
             selected_icon=ft.Icons.COMPRESS_ROUNDED,
             selected_icon_color=ft.Colors.WHITE,
             selected=False,
