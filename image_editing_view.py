@@ -79,7 +79,7 @@ class ImageEditingView(ft.Column):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series003c2_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
+        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series007c1_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
         self._slice_id = -1
         self._image_id = None
         self._bf_id = None
@@ -108,6 +108,11 @@ class ImageEditingView(ft.Column):
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
                                           tooltip="Delete Mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
+        self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
+                                            style=ft.ButtonStyle(
+                                                shape=ft.RoundedRectangleBorder(radius=12), ),
+                                            tooltip="Delete the complete mask.", hover_color=ft.Colors.WHITE12,
+                                            on_click=lambda e: self.delete_mask())
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}",
             opacity=1.0 if self._user_2_5d else 0.0, height=20,
@@ -156,6 +161,7 @@ class ImageEditingView(ft.Column):
                             )
                         ),
                     ),
+                    self._delete_mask_button,
                 ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,
             ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
             ))
@@ -182,6 +188,7 @@ class ImageEditingView(ft.Column):
         self._bf_id = bf_id
         self._load_main_image(img_id, bf_id)
         self._load_mask_image(img_id, bf_id)
+        #TODO: reset undo/redo when a new image is selected
 
     def _load_main_image(self, img_id, bf_id):
         if self._main_paths is not None:
@@ -497,13 +504,41 @@ class ImageEditingView(ft.Column):
 
         final_masks = mask if self._slice_id == -1 else mask_3d
         final_outlines = outline if self._slice_id == -1 else outline_3d
-        if not np.any(final_masks):
-            if os.path.exists(self._mask_path):
-                os.remove(self._mask_path)
-            self._mask_path = None
-        else:
-            np.save(self._mask_path, {"masks": final_masks,
+
+        np.save(self._mask_path, {"masks": final_masks,
                                   "outlines": final_outlines}, allow_pickle=True)
 
         self._update_mask_image()
         self.on_mask_change()
+
+    def delete_mask(self):
+        def cancel_dialog(a):
+            cupertino_alert_dialog.open = False
+            a.control.page.update()
+
+        def ok_dialog(a):
+            #TODO: RESET here the undo redo operations
+            cupertino_alert_dialog.open = False
+            a.control.page.update()
+            if self._mask_path is not None:
+                if os.path.exists(self._mask_path):
+                    os.remove(self._mask_path)
+                self._mask_path = None
+                self._update_mask_image()
+                self.on_mask_change()
+
+        cupertino_alert_dialog = ft.CupertinoAlertDialog(
+            title=ft.Text("Delete Entire Mask"),
+            content=ft.Text("Are you sure you want to delete all drawn cells on this image?\n\n"
+                           "The underlying mask file will be deleted. "
+                           "You can always start over by drawing new cells, but the current state cannot be recovered with undo operations."),
+            actions=[
+                ft.CupertinoDialogAction(
+                    "Cancel", default=True, on_click=cancel_dialog
+                ),
+                ft.CupertinoDialogAction("Ok", destructive=True, on_click=lambda a: ok_dialog(a)),
+            ],
+        )
+        self.page.overlay.append(cupertino_alert_dialog)
+        cupertino_alert_dialog.open = True
+        self.page.update()
