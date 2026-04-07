@@ -58,7 +58,10 @@ class DrawingTool(cv.Canvas):
         self._state.image_width = width
         self._state.image_height = height
         self._state.update_scale_offset()
-    
+
+    def get_bounds(self):
+        return self._state.image_width, self._state.image_height
+
     def draw(self):
         self._state.drawing_mode = True
         self._state.delete_mode = False

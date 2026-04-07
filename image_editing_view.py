@@ -1,4 +1,6 @@
 import base64
+import os
+import typing
 from io import BytesIO
 from pathlib import Path
 
@@ -23,7 +25,7 @@ def load_image(image_path,get_slice=-1):
 
     _, buffer = cv2.imencode('.png', image)
 
-    return base64.b64encode(buffer).decode('utf-8'),image.shape[1], image.shape[0]
+    return base64.b64encode(buffer).decode('utf-8'),image.shape
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -76,15 +78,20 @@ class ImageEditingView(ft.Column):
     def __init__(self):
         super().__init__()
         self._mask_paths = None
-        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series003c4_seg.npy" #select a mask
-        self._slice_id = -1
         self._main_paths = None
+        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series003c2_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
+        self._slice_id = -1
+        self._image_id = None
+        self._bf_id = None
         self._mask_color = (255, 0, 0)
         self._outline_color = (0, 255, 0)
         self._opacity = 100
         self._user_2_5d = False
+        self.on_mask_change: typing.Callable[[], None] = lambda: None
+        self.mask_suffix = "_seg"
         self.width=600
         self.expand=False
+        self._edit_allowed = True
         self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN, visible=True,gapless_playback=True)
         self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN,gapless_playback=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
@@ -93,10 +100,10 @@ class ImageEditingView(ft.Column):
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12),), on_click=lambda e: self._show_mask(),
                                           tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=False)
-        self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.WHITE_60,
+        self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
-                                              shape=ft.RoundedRectangleBorder(radius=12), ),
-                                          tooltip="Draw Mode", hover_color=ft.Colors.WHITE12,on_click=lambda e:self._toggle_draw())
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
+                                          tooltip="Draw Mode", hover_color=ft.Colors.WHITE_12,on_click=lambda e:self._toggle_draw())
         self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.WHITE_60,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
@@ -106,6 +113,7 @@ class ImageEditingView(ft.Column):
             opacity=1.0 if self._user_2_5d else 0.0, height=20,
             active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
+            on_change=lambda e: self._slider2_5d_change()
         )
         self._slider_2d = ft.CupertinoSlidingSegmentedButton(
             selected_index=0 if not self._user_2_5d else 1,
@@ -113,9 +121,10 @@ class ImageEditingView(ft.Column):
             bgcolor=ft.Colors.WHITE60,
             padding=ft.padding.symmetric(0, 0),
             controls=[
-                ft.Text("2D", color=ft.Colors.BLACK),
-                ft.Text("2.5D", color=ft.Colors.BLACK)
+                ft.Text("2D", color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD),
+                ft.Text("2.5D", color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD)
             ],
+            on_change=lambda e: self._slider2d_update(e)
         )
         self._shifting_check_box = ft.IconButton(
             icon=ft.Icons.EXPAND,
@@ -169,6 +178,8 @@ class ImageEditingView(ft.Column):
 
     def select_image(self, img_id, bf_id, slice_id = -1):
         self._slice_id = slice_id
+        self._image_id = img_id
+        self._bf_id = bf_id
         self._load_main_image(img_id, bf_id)
         self._load_mask_image(img_id, bf_id)
 
@@ -176,20 +187,90 @@ class ImageEditingView(ft.Column):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if bf_id in self._main_paths[img_id]:
-                    src, max_x, max_y = load_image(self._main_paths[img_id][bf_id], get_slice=self._slice_id)
+                    src, shape = load_image(self._main_paths[img_id][bf_id], get_slice=self._slice_id)
                     self._main_image.src = src
-                    self.drawing_tool.set_bounds(max_x, max_y)
+                    self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
+                    if len(shape) == 3:
+                        if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
+                            self._edit_button.icon_color = ft.Colors.WHITE60
+                            self._edit_button.disabled = False
+                            self._edit_button.update()
+                        else:
+                            self._edit_button.icon_color = ft.Colors.BLACK12
+                            self._edit_button.disabled = True
+                            self._edit_button.update()
+                        self._slider_2_5d.value = 0 if shape[
+                                                           -2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+                        self._slider_2_5d.max = shape[2] - 1
+                        self._slider_2_5d.divisions = shape[2] - 2
+                        self._slider_2_5d.disabled = False
+                        self._slider_2_5d.update()
+                    if self._edit_allowed:
+                        self._edit_button.icon_color = ft.Colors.WHITE60
+                        self._edit_button.disabled = False
+                        self._edit_button.update()
+                    self._slider_2_5d.value = 0
+                    self._slider_2_5d.max = 1
+                    self._slider_2_5d.divisions = None
+                    self._slider_2_5d.disabled = True
+                    self._slider_2_5d.update()
                     return
 
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
         self._main_image.update()
 
+    def _slider2d_update(self,e):
+        if int(e.data) == 1:
+            self._slider_2_5d.opacity = 1.0
+            self.user_2_5d = True
+        else:
+            self._slider_2_5d.opacity = 0.0
+            self.user_2_5d = False
+
+        self._slider2_5d_change()
+        self._slider_2_5d.update()
+
+    def _slider2_5d_change(self):
+        if self.user_2_5d:
+            self._slice_id = self._slider_2_5d.value
+        else:
+            self._slice_id = -1
+
+        if self._image_id is not None and self._bf_id is not None:
+            self.select_image(self._image_id,self._bf_id,self._slice_id)
+
     def _load_main_image_with_path(self,path):
-        src, max_x, max_y = load_image(path, get_slice=-1)
+        #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
+        src, shape = load_image(path, get_slice=-1)
         self._main_image.src = src
-        self.drawing_tool.set_bounds(max_x, max_y)
+        self.drawing_tool.set_bounds(shape[1],shape[0])
         self._main_image.update()
+        if len(shape) == 3:
+            if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
+                self._edit_button.icon_color = ft.Colors.WHITE60
+                self._edit_button.disabled = False
+                self._edit_button.update()
+            else:
+                self._edit_button.icon_color = ft.Colors.BLACK12
+                self._edit_button.disabled = True
+                self._edit_button.update()
+            self._slider_2_5d.value = 0 if shape[
+                                               -2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+            self._slider_2_5d.max = shape[2] - 1
+            self._slider_2_5d.divisions = shape[2] - 2
+            self._slider_2_5d.disabled = False
+            self._slider_2_5d.update()
+        else:
+            if self._edit_allowed:
+                self._edit_button.icon_color = ft.Colors.WHITE60
+                self._edit_button.disabled = False
+                self._edit_button.update()
+            self._slider_2_5d.value = 0
+            self._slider_2_5d.max = 1
+            self._slider_2_5d.divisions = None
+            self._slider_2_5d.disabled = True
+            self._slider_2_5d.update()
         return
 
     def _load_mask_image(self, img_id, bf_id):
@@ -210,6 +291,7 @@ class ImageEditingView(ft.Column):
                         self._mask_button.update()
                     return
 
+        self._mask_path = None
         self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
         self._mask_image.visible = False
         self._mask_image.update()
@@ -219,7 +301,12 @@ class ImageEditingView(ft.Column):
         self._mask_button.update()
 
     def _update_mask_image(self):
-        if self._mask_path != "":
+        if self._mask_path is not None:
+            if not self._mask_image.visible:
+                self._mask_button.icon_color = ft.Colors.WHITE60
+                self._mask_button.tooltip = "Show mask"
+                self._mask_button.disabled = False
+                self._mask_button.update()
             mask_data = np.load(
                 Path(self._mask_path), allow_pickle=True).item()
             mask = mask_data["masks"]
@@ -227,6 +314,14 @@ class ImageEditingView(ft.Column):
             self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color,
                                                                 self._opacity, slice_id=self._slice_id)
             self._mask_image.update()
+        else:
+            self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+            self._mask_image.visible = False
+            self._mask_image.update()
+            self._mask_button.tooltip = "Show mask"
+            self._mask_button.icon_color = ft.Colors.BLACK12
+            self._mask_button.disabled = True
+            self._mask_button.update()
 
     def _show_mask(self):
         self._mask_image.visible = not self._mask_image.visible
@@ -267,6 +362,32 @@ class ImageEditingView(ft.Column):
     def _cell_drawn(self, lines_data: list):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
+        if self._mask_path is None: #currently no mask is given
+            if self._image_id is None or self._bf_id is None:
+                return
+            image_path = self._main_paths[self._image_id][self._bf_id]
+            directory, filename = os.path.split(image_path)
+            name, _ = os.path.splitext(filename)
+            mask_file_name = f"{name}{self.mask_suffix}.npy"
+            self._mask_path = os.path.join(directory, mask_file_name)
+            image_width, image_height = self.drawing_tool.get_bounds()
+            if self._slice_id == -1:
+                #2D Case
+                empty_mask = {
+                    "masks": np.zeros((image_height, image_width), dtype=np.uint8),
+                    "outlines": np.zeros((image_height, image_width), dtype=np.uint8)
+                }
+            else:
+                #3D-Image Case (with Z-Slices)
+                empty_mask = {
+                    "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint8),
+                    "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint8)
+                }
+
+            #Save the new empty mask
+            np.save(self._mask_path, empty_mask)
+
+
         line_pixels = set()
         for line in lines_data:
             pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
@@ -324,9 +445,13 @@ class ImageEditingView(ft.Column):
                             "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
 
         self._update_mask_image()
+        self.on_mask_change()
 
     def _delete_cell(self, pos: tuple):
         #delete the cell in the mask data
+        if self._mask_path is None:
+            return
+
         mask_data = np.load(self._mask_path, allow_pickle=True).item()
 
         mask = mask_data["masks"]
@@ -344,8 +469,11 @@ class ImageEditingView(ft.Column):
 
         cell_id = _get_cell_id_from_position(pos, mask)
 
-        if cell_id == 0:
-            return
+        if not cell_id:
+            cell_id_outline = _get_cell_id_from_position(pos, outline)
+            if not cell_id_outline:
+                return
+            cell_id = cell_id_outline
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id).copy()
@@ -355,7 +483,6 @@ class ImageEditingView(ft.Column):
         if self._shifting_check_box.selected:
             mask_shifting(mask_data, cell_id, self._slice_id)
 
-        # Save new state after deletion
         mask_3d = None
         outline_3d = None
         if self._slice_id >= 0:
@@ -368,7 +495,15 @@ class ImageEditingView(ft.Column):
             if outline_3d.ndim == 3:
                 outline_3d[self._slice_id, :, :] = outline
 
-        np.save(self._mask_path, {"masks": mask if self._slice_id == -1 else mask_3d,
-                                  "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
+        final_masks = mask if self._slice_id == -1 else mask_3d
+        final_outlines = outline if self._slice_id == -1 else outline_3d
+        if not np.any(final_masks):
+            if os.path.exists(self._mask_path):
+                os.remove(self._mask_path)
+            self._mask_path = None
+        else:
+            np.save(self._mask_path, {"masks": final_masks,
+                                  "outlines": final_outlines}, allow_pickle=True)
 
         self._update_mask_image()
+        self.on_mask_change()
