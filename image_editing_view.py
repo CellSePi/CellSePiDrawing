@@ -79,10 +79,11 @@ class ImageEditingView(ft.Column):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series007c1_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
+        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series007c2_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
         self._slice_id = -1
         self._image_id = None
         self._channel_id = None
+        self._seg_channel_id = None
         self._mask_color = (255, 0, 0)
         self._outline_color = (0, 255, 0)
         self._opacity = 100
@@ -182,19 +183,21 @@ class ImageEditingView(ft.Column):
         self._opacity = opacity
         self._update_mask_image()
 
-    def select_image(self, img_id, bf_id, slice_id = -1):
+    def select_image(self, img_id, channel_id,seg_channel_id, slice_id = -1):
         self._slice_id = slice_id
         self._image_id = img_id
-        self._channel_id = bf_id
-        self._load_main_image(img_id, bf_id)
-        self._load_mask_image(img_id, bf_id)
+        if self._channel_id != channel_id or self._image_id != img_id:
+            self._load_main_image(img_id, channel_id)
+        self._channel_id = channel_id
+        self._seg_channel_id = seg_channel_id
+        self._load_mask_image(img_id, seg_channel_id)
         #TODO: reset undo/redo when a new image is selected
 
-    def _load_main_image(self, img_id, bf_id):
+    def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
             if img_id in self._main_paths:
-                if bf_id in self._main_paths[img_id]:
-                    src, shape = load_image(self._main_paths[img_id][bf_id], get_slice=self._slice_id)
+                if channel_id in self._main_paths[img_id]:
+                    src, shape = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
                     self._main_image.src = src
                     self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
@@ -244,8 +247,7 @@ class ImageEditingView(ft.Column):
         else:
             self._slice_id = -1
 
-        if self._image_id is not None and self._channel_id is not None:
-            self.select_image(self._image_id, self._channel_id, self._slice_id)
+        self._update_mask_image()
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
@@ -280,13 +282,13 @@ class ImageEditingView(ft.Column):
             self._slider_2_5d.update()
         return
 
-    def _load_mask_image(self, img_id, bf_id):
+    def _load_mask_image(self, img_id, seg_channel_id):
         if self._mask_paths is not None:
             if img_id in self._mask_paths:
-                if bf_id in self._mask_paths[img_id]:
+                if seg_channel_id in self._mask_paths[img_id]:
                     mask_data = np.load(
-                        Path(self._mask_paths[img_id][bf_id]),allow_pickle=True).item()
-                    self._mask_path = self._mask_paths[img_id][bf_id]
+                        Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
+                    self._mask_path = self._mask_paths[img_id][seg_channel_id]
                     mask = mask_data["masks"]
                     outline = mask_data["outlines"]
                     self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color, self._opacity, slice_id=self._slice_id)
@@ -370,14 +372,14 @@ class ImageEditingView(ft.Column):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         if self._mask_path is None: #currently no mask is given
-            if self._image_id is None or self._channel_id is None:
+            if self._image_id is None or self._seg_channel_id is None:
                 return
-            image_path = self._main_paths[self._image_id][self._channel_id]
+            image_path = self._main_paths[self._image_id][self._seg_channel_id]
             directory, filename = os.path.split(image_path)
             name, _ = os.path.splitext(filename)
             mask_file_name = f"{name}{self.mask_suffix}.npy"
             self._mask_path = os.path.join(directory, mask_file_name)
-            self._mask_paths[self._image_id][self._channel_id] = self._mask_path
+            self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
             image_width, image_height = self.drawing_tool.get_bounds()
             if self._slice_id == -1:
                 #2D Case
@@ -524,7 +526,7 @@ class ImageEditingView(ft.Column):
                 if os.path.exists(self._mask_path):
                     os.remove(self._mask_path)
                 if self._mask_paths and self._image_id in self._mask_paths:
-                    self._mask_paths[self._image_id].pop(self._channel_id, None)
+                    self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
                 self._mask_path = None
                 self._update_mask_image()
                 self.on_mask_change()
