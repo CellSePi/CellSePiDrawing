@@ -75,7 +75,7 @@ def _get_cell_id_from_position(position, mask):
     return None
 
 class ImageEditingView(ft.Column):
-    def __init__(self):
+    def __init__(self,on_mask_change=None):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
@@ -88,7 +88,7 @@ class ImageEditingView(ft.Column):
         self._outline_color = (0, 255, 0)
         self._opacity = 100
         self._user_2_5d = False
-        self.on_mask_change: typing.Callable[[], None] = lambda: None
+        self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
         self.mask_suffix = "_seg"
         self.width=600
         self.expand=False
