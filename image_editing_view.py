@@ -354,9 +354,10 @@ class ImageEditingView(ft.Column):
         self._delete_button.icon_color = ft.Colors.WHITE if self._delete_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
         self._delete_button.update()
         if self._delete_button.icon_color == ft.Colors.WHITE:
-            self._edit_button.icon_color = ft.Colors.WHITE60
-            self._edit_button.update()
-            self.drawing_tool.delete()
+            if not self._edit_button.disabled:
+                self._edit_button.icon_color = ft.Colors.WHITE60
+                self._edit_button.update()
+                self.drawing_tool.delete()
         else:
             self.drawing_tool.deactivate_delete()
 
