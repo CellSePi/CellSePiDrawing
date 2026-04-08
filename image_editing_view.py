@@ -79,7 +79,7 @@ class ImageEditingView(ft.Column):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = "/home/mmdark/Downloads/data (4)/data/output/Series007c2_seg.npy"  # select a mask TODO: SET TO None ONLY FOR TESTING
+        self._mask_path = None #Could set a mask_path for TESTING
         self._slice_id = -1
         self._image_id = None
         self._channel_id = None
