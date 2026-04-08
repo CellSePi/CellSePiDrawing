@@ -181,7 +181,7 @@ class ImageEditingView(ft.Column):
         self._mask_color = mask_color
         self._outline_color = outline_color
         self._opacity = opacity
-        self._update_mask_image()
+        self.update_mask_image()
 
     def reset_image(self):
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
@@ -263,7 +263,7 @@ class ImageEditingView(ft.Column):
         else:
             self._slice_id = -1
 
-        self._update_mask_image()
+        self.update_mask_image()
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
@@ -326,20 +326,12 @@ class ImageEditingView(ft.Column):
         self._mask_button.disabled = True
         self._mask_button.update()
 
-    def _update_mask_image(self):
+    def update_mask_image(self):
         if self._mask_path is not None:
-            if not self._mask_image.visible:
-                self._mask_button.icon_color = ft.Colors.WHITE60
-                self._mask_button.tooltip = "Show mask"
-                self._mask_button.disabled = False
-                self._mask_button.update()
-            mask_data = np.load(
-                Path(self._mask_path), allow_pickle=True).item()
-            mask = mask_data["masks"]
-            outline = mask_data["outlines"]
-            self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color,
-                                                                self._opacity, slice_id=self._slice_id)
-            self._mask_image.update()
+            self._update_mask_image()
+        elif self._mask_paths[self._image_id][self._channel_id] is not None:
+            self._mask_path = self._mask_paths[self._image_id][self._channel_id]
+            self._update_mask_image()
         else:
             self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
             self._mask_image.visible = False
@@ -348,6 +340,20 @@ class ImageEditingView(ft.Column):
             self._mask_button.icon_color = ft.Colors.BLACK12
             self._mask_button.disabled = True
             self._mask_button.update()
+
+    def _update_mask_image(self):
+        if not self._mask_image.visible:
+            self._mask_button.icon_color = ft.Colors.WHITE60
+            self._mask_button.tooltip = "Show mask"
+            self._mask_button.disabled = False
+            self._mask_button.update()
+        mask_data = np.load(
+            Path(self._mask_path), allow_pickle=True).item()
+        mask = mask_data["masks"]
+        outline = mask_data["outlines"]
+        self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color,
+                                                     self._opacity, slice_id=self._slice_id)
+        self._mask_image.update()
 
     def _show_mask(self):
         self._mask_image.visible = not self._mask_image.visible
@@ -471,7 +477,7 @@ class ImageEditingView(ft.Column):
         np.save(self._mask_path, {"masks": mask if self._slice_id == -1 else mask_3d,
                             "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
 
-        self._update_mask_image()
+        self.update_mask_image()
         self.on_mask_change()
 
     def _delete_cell(self, pos: tuple):
@@ -528,7 +534,7 @@ class ImageEditingView(ft.Column):
         np.save(self._mask_path, {"masks": final_masks,
                                   "outlines": final_outlines}, allow_pickle=True)
 
-        self._update_mask_image()
+        self.update_mask_image()
         self.on_mask_change()
 
     def delete_mask(self):
@@ -546,7 +552,7 @@ class ImageEditingView(ft.Column):
                 if self._mask_paths and self._image_id in self._mask_paths:
                     self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
                 self._mask_path = None
-                self._update_mask_image()
+                self.update_mask_image()
                 self.on_mask_change()
 
         cupertino_alert_dialog = ft.CupertinoAlertDialog(
