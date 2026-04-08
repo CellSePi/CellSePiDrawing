@@ -1,0 +1,24 @@
+[project]
+name = "cellsepi-drawing"
+version = "0.1.0"
+description = "CellSePiDrawing provides the image editing view for the CellSePi project."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Florian Hock", email = "fhock2002@gmail.com" }
+]
+dependencies = [
+    "flet>=0.84.0",
+    "pillow>=12.1.1",
+    "tifffile>=2026.3.3",
+    "numpy>=2.4.4",
+    "opencv-python>=4.13.0.92"
+]
+
+[tool.setuptools]
+packages = ["."]
+license-files = ["licence"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

@@ -216,15 +216,16 @@ class ImageEditingView(ft.Column):
                         self._slider_2_5d.divisions = shape[2] - 2
                         self._slider_2_5d.disabled = False
                         self._slider_2_5d.update()
-                    if self._edit_allowed:
-                        self._edit_button.icon_color = ft.Colors.WHITE60
-                        self._edit_button.disabled = False
-                        self._edit_button.update()
-                    self._slider_2_5d.value = 0
-                    self._slider_2_5d.max = 1
-                    self._slider_2_5d.divisions = None
-                    self._slider_2_5d.disabled = True
-                    self._slider_2_5d.update()
+                    else:
+                        if self._edit_allowed:
+                            self._edit_button.icon_color = ft.Colors.WHITE60
+                            self._edit_button.disabled = False
+                            self._edit_button.update()
+                        self._slider_2_5d.value = 0
+                        self._slider_2_5d.max = 1
+                        self._slider_2_5d.divisions = None
+                        self._slider_2_5d.disabled = True
+                        self._slider_2_5d.update()
                     return
 
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
