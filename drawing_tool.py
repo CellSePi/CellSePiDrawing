@@ -24,10 +24,11 @@ class State:
     offset_y: float = 0
 
     def update_scale_offset(self):
-        self.scale = min(self.width/self.image_width, self.height/self.image_height)
-        self.offset_x = (self.width - (self.image_width * self.scale))/2
-        self.offset_y = (self.height - (self.image_height * self.scale))/2
-
+        if self.image_width > 0 and self.image_height > 0:
+            self.scale = min(self.width/self.image_width, self.height/self.image_height)
+            self.offset_x = (self.width - (self.image_width * self.scale))/2
+            self.offset_y = (self.height - (self.image_height * self.scale))/2
+    
 class DrawingTool(cv.Canvas):
     def __init__(self, on_cell_drawn: typing.Callable[[list], None] = None, on_cell_deleted: typing.Callable[[tuple], None] = None):
         super().__init__()
