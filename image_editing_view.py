@@ -86,7 +86,7 @@ class ImageEditingView(ft.Column):
         self._seg_channel_id = None
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
-        self.opacity = 128
+        self.opacity = 0.75
         self.width=700
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
