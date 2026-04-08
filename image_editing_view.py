@@ -183,6 +183,19 @@ class ImageEditingView(ft.Column):
         self._opacity = opacity
         self._update_mask_image()
 
+    def reset_image(self):
+        self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._main_image.height = 400
+        self._main_image.update()
+        self._mask_path = None
+        self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._mask_image.visible = False
+        self._mask_image.update()
+        self._mask_button.tooltip = "Show mask"
+        self._mask_button.icon_color = ft.Colors.BLACK12
+        self._mask_button.disabled = True
+        self._mask_button.update()
+
     def select_image(self, img_id, channel_id,seg_channel_id, slice_id = -1):
         self._slice_id = slice_id
         self._image_id = img_id
