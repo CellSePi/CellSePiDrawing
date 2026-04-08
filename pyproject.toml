@@ -16,7 +16,6 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["."]
 license-files = ["licence"]
 
 [build-system]
