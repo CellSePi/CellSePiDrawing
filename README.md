@@ -1,5 +1,5 @@
 # CellSePi Drawing
-> **CellSePiDrawing provides the image editing view for the CellSePi project.
+> **CellSePiDrawing provides the image editing view for the CellSePi project.**
 
 > [!IMPORTANT]
 > **Note:** Built and tested with Flet Version 0.84.0.
