@@ -197,13 +197,13 @@ class ImageEditingView(ft.Column):
         self._mask_button.update()
 
     def select_image(self, img_id, channel_id,seg_channel_id, slice_id = -1):
+        if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
+            self._load_mask_image(img_id, seg_channel_id)
         self._slice_id = slice_id
         self._image_id = img_id
-        if self._channel_id != channel_id or self._image_id != img_id:
-            self._load_main_image(img_id, channel_id)
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
-        self._load_mask_image(img_id, seg_channel_id)
+        self._load_main_image(img_id, channel_id)
         #TODO: reset undo/redo when a new image is selected
 
     def _load_main_image(self, img_id, channel_id):
