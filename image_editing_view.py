@@ -84,9 +84,9 @@ class ImageEditingView(ft.Column):
         self._image_id = None
         self._channel_id = None
         self._seg_channel_id = None
-        self._mask_color = (255, 0, 0)
-        self._outline_color = (0, 255, 0)
-        self._opacity = 100
+        self.mask_color = (255, 0, 0)
+        self.outline_color = (0, 255, 0)
+        self.opacity = 128
         self.width=700
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
@@ -178,9 +178,9 @@ class ImageEditingView(ft.Column):
 
     def set_colors(self, mask_color, outline_color, opacity):
         self.drawing_tool.draw_color= rgb_to_hex(outline_color)
-        self._mask_color = mask_color
-        self._outline_color = outline_color
-        self._opacity = opacity
+        self.mask_color = mask_color
+        self.outline_color = outline_color
+        self.opacity = opacity
         self.update_mask_image()
 
     def reset_image(self):
@@ -308,7 +308,7 @@ class ImageEditingView(ft.Column):
                     self._mask_path = self._mask_paths[img_id][seg_channel_id]
                     mask = mask_data["masks"]
                     outline = mask_data["outlines"]
-                    self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color, self._opacity, slice_id=self._slice_id)
+                    self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.opacity, slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
                         self._mask_button.icon_color = ft.Colors.WHITE60
@@ -329,7 +329,7 @@ class ImageEditingView(ft.Column):
     def update_mask_image(self):
         if self._mask_path is not None:
             self._update_mask_image()
-        elif self._mask_paths[self._image_id][self._channel_id] is not None:
+        elif self._image_id in self._mask_paths and self._mask_paths[self._image_id][self._channel_id] is not None:
             self._mask_path = self._mask_paths[self._image_id][self._channel_id]
             self._update_mask_image()
         else:
@@ -351,8 +351,8 @@ class ImageEditingView(ft.Column):
             Path(self._mask_path), allow_pickle=True).item()
         mask = mask_data["masks"]
         outline = mask_data["outlines"]
-        self._mask_image.src = convert_npy_to_canvas(mask, outline, self._mask_color, self._outline_color,
-                                                     self._opacity, slice_id=self._slice_id)
+        self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
+                                                     self.opacity, slice_id=self._slice_id)
         self._mask_image.update()
 
     def _show_mask(self):
