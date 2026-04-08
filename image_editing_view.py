@@ -87,14 +87,14 @@ class ImageEditingView(ft.Column):
         self._mask_color = (255, 0, 0)
         self._outline_color = (0, 255, 0)
         self._opacity = 100
+        self.width=700
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
         self.mask_suffix = "_seg"
-        self.width=600
         self.expand=False
         self._edit_allowed = True
-        self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN, visible=True,gapless_playback=True)
-        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN,gapless_playback=True)
+        self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.SCALE_DOWN, visible=False,gapless_playback=True)
+        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC",height=400, fit=ft.BoxFit.SCALE_DOWN,visible=True,gapless_playback=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image, self._mask_image, self.drawing_tool]))
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
@@ -199,6 +199,7 @@ class ImageEditingView(ft.Column):
                 if channel_id in self._main_paths[img_id]:
                     src, shape = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
                     self._main_image.src = src
+                    self._main_image.height = None
                     self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
                     if len(shape) == 3:
@@ -229,6 +230,7 @@ class ImageEditingView(ft.Column):
                     return
 
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._main_image.height = 400
         self._main_image.update()
 
     def _slider2d_update(self,e):
@@ -254,6 +256,7 @@ class ImageEditingView(ft.Column):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
         src, shape = load_image(path, get_slice=-1)
         self._main_image.src = src
+        self._main_image.height = None
         self.drawing_tool.set_bounds(shape[1],shape[0])
         self._main_image.update()
         if len(shape) == 3:
