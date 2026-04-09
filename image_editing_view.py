@@ -257,7 +257,7 @@ class ImageEditingView(ft.Card):
 
     def _slider2_5d_change(self):
         if self.user_2_5d:
-            self._slice_id = self._slider_2_5d.value
+            self._slice_id = int(self._slider_2_5d.value)
         else:
             self._slice_id = -1
         self._load_main_image(self._image_id,self._channel_id)
