@@ -74,7 +74,7 @@ def _get_cell_id_from_position(position, mask):
         return mask[y, x]
     return None
 
-class ImageEditingView(ft.Column):
+class ImageEditingView(ft.Stack):
     def __init__(self,on_mask_change=None):
         super().__init__()
         self._mask_paths = None
@@ -166,7 +166,7 @@ class ImageEditingView(ft.Column):
             ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
             ))
         #TODO: ADD REDO/UNDO
-        self.controls = [self.image_stack,self.control_tools]
+        self.content = [ft.Card(expand=True),ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools])]
         self.spacing=0
 
     def set_mask_paths(self, mask_paths: list):
