@@ -17,7 +17,9 @@ from drawing_util import bresenham_line, search_free_id, trace_contour, fill_pol
 
 def load_image(image_path,get_slice=-1):
     image = tifffile.imread(image_path)
-    if image.ndim == 3:
+    shape = list(image.shape)
+    check = image.ndim == 3
+    if check:
         if not get_slice == -1:
             image = np.take(image, get_slice, axis=2)
         else:
@@ -25,7 +27,7 @@ def load_image(image_path,get_slice=-1):
 
     _, buffer = cv2.imencode('.png', image)
 
-    return base64.b64encode(buffer).decode('utf-8'),image.shape,image.ndim==3
+    return base64.b64encode(buffer).decode('utf-8'),shape,check
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -114,7 +116,7 @@ class ImageEditingView(ft.Card):
                                             tooltip="Delete the complete mask.", hover_color=ft.Colors.WHITE12,
                                             on_click=lambda e: self.delete_mask())
         self._slider_2_5d = ft.Slider(
-            min=0, max=100, divisions=None, label="Slice: {value}",
+            min=0, max=100, divisions=None, label="Slice: {value}",value=0,
             opacity=1.0 if self._user_2_5d else 0.0, height=20,
             active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
@@ -258,8 +260,8 @@ class ImageEditingView(ft.Card):
             self._slice_id = self._slider_2_5d.value
         else:
             self._slice_id = -1
-
-        self.update_mask_image()
+        self._load_main_image(self._image_id,self._channel_id)
+        self._update_mask_image()
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
