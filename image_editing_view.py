@@ -25,7 +25,7 @@ def load_image(image_path,get_slice=-1):
 
     _, buffer = cv2.imencode('.png', image)
 
-    return base64.b64encode(buffer).decode('utf-8'),image.shape
+    return base64.b64encode(buffer).decode('utf-8'),image.shape,image.dim==3
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -210,12 +210,12 @@ class ImageEditingView(ft.Column):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
-                    src, shape = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
+                    src, shape,img_3d = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
                     self._main_image.src = src
                     self._main_image.height = None
                     self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
-                    if len(shape) == 3:
+                    if img_3d:
                         if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
                             self._edit_button.icon_color = ft.Colors.WHITE60
                             self._edit_button.disabled = False
@@ -224,8 +224,7 @@ class ImageEditingView(ft.Column):
                             self._edit_button.icon_color = ft.Colors.BLACK12
                             self._edit_button.disabled = True
                             self._edit_button.update()
-                        self._slider_2_5d.value = 0 if shape[
-                                                           -2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+                        self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
                         self._slider_2_5d.max = shape[2] - 1
                         self._slider_2_5d.divisions = shape[2] - 2
                         self._slider_2_5d.disabled = False
@@ -267,12 +266,12 @@ class ImageEditingView(ft.Column):
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
-        src, shape = load_image(path, get_slice=-1)
+        src, shape, img_3d = load_image(path, get_slice=-1)
         self._main_image.src = src
         self._main_image.height = None
         self.drawing_tool.set_bounds(shape[1],shape[0])
         self._main_image.update()
-        if len(shape) == 3:
+        if img_3d:
             if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
                 self._edit_button.icon_color = ft.Colors.WHITE60
                 self._edit_button.disabled = False
