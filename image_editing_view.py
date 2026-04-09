@@ -95,7 +95,7 @@ class ImageEditingView(ft.Card):
         self.expand=True
         self._edit_allowed = True
         self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
-        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC",height=400, fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True,expand=True)
+        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True,expand=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image, self._mask_image, self.drawing_tool],expand=True),expand=True)
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
@@ -185,7 +185,6 @@ class ImageEditingView(ft.Card):
 
     def reset_image(self):
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
-        self._main_image.height = 400
         self._main_image.update()
         self._mask_path = None
         self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
@@ -241,7 +240,6 @@ class ImageEditingView(ft.Card):
                     return
 
         self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
-        self._main_image.height = 400
         self._main_image.update()
 
     def _slider2d_update(self,e):
