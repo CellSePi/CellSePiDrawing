@@ -77,7 +77,7 @@ def _get_cell_id_from_position(position, mask):
     return None
 
 class ImageEditingView(ft.Card):
-    def __init__(self,on_mask_change=None):
+    def __init__(self,on_mask_change: typing.Callable[[str], None] = None):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
@@ -90,7 +90,7 @@ class ImageEditingView(ft.Card):
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
         self._user_2_5d = False
-        self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
+        self.on_mask_change = on_mask_change or (lambda x: None)
         self.mask_suffix = "_seg"
         self.expand=True
         self._edit_allowed = True
@@ -478,7 +478,7 @@ class ImageEditingView(ft.Card):
                             "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
 
         self.update_mask_image()
-        self.on_mask_change()
+        self.on_mask_change(self._image_id)
 
     def _delete_cell(self, pos: tuple):
         #delete the cell in the mask data
@@ -535,7 +535,7 @@ class ImageEditingView(ft.Card):
                                   "outlines": final_outlines}, allow_pickle=True)
 
         self.update_mask_image()
-        self.on_mask_change()
+        self.on_mask_change(self._image_id)
 
     def delete_mask(self):
         def cancel_dialog(a):
@@ -553,7 +553,7 @@ class ImageEditingView(ft.Card):
                     self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
                 self._mask_path = None
                 self.update_mask_image()
-                self.on_mask_change()
+                self.on_mask_change(self._image_id)
 
         cupertino_alert_dialog = ft.CupertinoAlertDialog(
             title=ft.Text("Delete Entire Mask"),
