@@ -261,7 +261,7 @@ class ImageEditingView(ft.Card):
         else:
             self._slice_id = -1
         self._load_main_image(self._image_id,self._channel_id)
-        self._update_mask_image()
+        self.update_mask_image()
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
