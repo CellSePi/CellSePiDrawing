@@ -91,7 +91,7 @@ class ImageEditingView(ft.Column):
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
         self.mask_suffix = "_seg"
-        self.expand=True
+        self.expand=False
         self._edit_allowed = True
         self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True)
         self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC",height=400, fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True)
@@ -402,6 +402,8 @@ class ImageEditingView(ft.Column):
             name, _ = os.path.splitext(filename)
             mask_file_name = f"{name}{self.mask_suffix}.npy"
             self._mask_path = os.path.join(directory, mask_file_name)
+            if self._image_id not in self._mask_paths:
+                self._mask_paths[self._image_id] = {}
             self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
             image_width, image_height = self.drawing_tool.get_bounds()
             if self._slice_id == -1:
