@@ -94,8 +94,8 @@ class ImageEditingView(ft.Card):
         self.mask_suffix = "_seg"
         self.expand=True
         self._edit_allowed = True
-        self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
-        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True,expand=True)
+        self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
+        self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN,visible=False,gapless_playback=True,expand=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image, self._mask_image, self.drawing_tool],expand=True),expand=True)
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
@@ -184,10 +184,11 @@ class ImageEditingView(ft.Card):
         self.update_mask_image()
 
     def reset_image(self):
-        self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._main_image.src = "Placeholder"
+        self._main_image.visible = False
         self._main_image.update()
         self._mask_path = None
-        self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_image.update()
         self._mask_button.tooltip = "Show mask"
@@ -210,7 +211,7 @@ class ImageEditingView(ft.Card):
                 if channel_id in self._main_paths[img_id]:
                     src, shape,img_3d = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
                     self._main_image.src = src
-                    self._main_image.height = None
+                    self._main_image.visible = True
                     self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
                     if img_3d:
@@ -239,7 +240,8 @@ class ImageEditingView(ft.Card):
                         self._slider_2_5d.update()
                     return
 
-        self._main_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._main_image.src = "Placeholder"
+        self._mask_image.visible = False
         self._main_image.update()
 
     def _slider2d_update(self,e):
@@ -265,7 +267,7 @@ class ImageEditingView(ft.Card):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
         src, shape, img_3d = load_image(path, get_slice=-1)
         self._main_image.src = src
-        self._main_image.height = None
+        self._main_image.visible = True
         self.drawing_tool.set_bounds(shape[1],shape[0])
         self._main_image.update()
         if img_3d:
@@ -314,7 +316,7 @@ class ImageEditingView(ft.Card):
                     return
 
         self._mask_path = None
-        self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+        self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_image.update()
         self._mask_button.tooltip = "Show mask"
@@ -329,7 +331,7 @@ class ImageEditingView(ft.Card):
             self._mask_path = self._mask_paths[self._image_id][self._channel_id]
             self._update_mask_image()
         else:
-            self._mask_image.src = r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC"
+            self._mask_image.src = "Placeholder"
             self._mask_image.visible = False
             self._mask_image.update()
             self._mask_button.tooltip = "Show mask"
