@@ -88,7 +88,7 @@ class ImageEditingView(ft.Card):
         self._seg_channel_id = None
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
-        self.opacity = 0.75
+        self.mask_opacity = 128
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
         self.mask_suffix = "_seg"
@@ -180,7 +180,7 @@ class ImageEditingView(ft.Card):
         self.drawing_tool.draw_color= rgb_to_hex(outline_color)
         self.mask_color = mask_color
         self.outline_color = outline_color
-        self.opacity = opacity
+        self.mask_opacity = opacity
         self.update_mask_image()
 
     def reset_image(self):
@@ -306,7 +306,7 @@ class ImageEditingView(ft.Card):
                     self._mask_path = self._mask_paths[img_id][seg_channel_id]
                     mask = mask_data["masks"]
                     outline = mask_data["outlines"]
-                    self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.opacity, slice_id=self._slice_id)
+                    self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
                         self._mask_button.icon_color = ft.Colors.WHITE60
@@ -350,7 +350,7 @@ class ImageEditingView(ft.Card):
         mask = mask_data["masks"]
         outline = mask_data["outlines"]
         self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
-                                                     self.opacity, slice_id=self._slice_id)
+                                                     self.mask_opacity, slice_id=self._slice_id)
         self._mask_image.update()
 
     def _show_mask(self):
