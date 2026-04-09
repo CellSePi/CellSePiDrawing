@@ -13,7 +13,7 @@ class State:
     y: float = 0
     lines: list[tuple[tuple[float, float],tuple[float, float]]] = field(default_factory=list)
     start_point: tuple[float,float] | None = None
-    drawing_mode: bool = True
+    drawing_mode: bool = False
     delete_mode: bool = False
     image_width: int = 0
     image_height: int = 0
