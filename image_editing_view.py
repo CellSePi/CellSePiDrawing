@@ -87,14 +87,13 @@ class ImageEditingView(ft.Column):
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
         self.opacity = 0.75
-        self.width=700
         self._user_2_5d = False
         self.on_mask_change: typing.Callable[[], None] = lambda: on_mask_change
         self.mask_suffix = "_seg"
-        self.expand=False
+        self.expand=True
         self._edit_allowed = True
-        self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True)
-        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC",height=400, fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True)
+        self._mask_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
+        self._main_image = ft.Image(src=r"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA\AAAFCAIAAAFe0wxPAAAAAElFTkSuQmCC",height=400, fit=ft.BoxFit.CONTAIN,visible=True,gapless_playback=True,expand=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell)
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image, self._mask_image, self.drawing_tool],expand=True))
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
