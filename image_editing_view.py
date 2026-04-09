@@ -25,7 +25,7 @@ def load_image(image_path,get_slice=-1):
 
     _, buffer = cv2.imencode('.png', image)
 
-    return base64.b64encode(buffer).decode('utf-8'),image.shape,image.dim==3
+    return base64.b64encode(buffer).decode('utf-8'),image.shape,image.ndim==3
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
