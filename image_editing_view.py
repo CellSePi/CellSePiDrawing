@@ -199,6 +199,7 @@ class ImageEditingView(ft.Card):
         self._edit_button.icon_color = ft.Colors.BLACK12
         self._edit_button.disabled = True
         self._edit_button.update()
+        self.drawing_tool.deactivate_drawing()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
@@ -258,6 +259,7 @@ class ImageEditingView(ft.Card):
                 self._edit_button.icon_color = ft.Colors.BLACK12
                 self._edit_button.disabled = True
                 self._edit_button.update()
+                self.drawing_tool.deactivate_drawing()
             self._slider_2_5d.value = 0 if shape[
                                                -2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[2] - 1
