@@ -213,39 +213,7 @@ class ImageEditingView(ft.Card):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
-                    src, shape,img_3d = load_image(self._main_paths[img_id][channel_id], get_slice=self._slice_id)
-                    self._main_image.src = src
-                    self._main_image.visible = True
-                    self.drawing_tool.set_bounds(shape[1], shape[0])
-                    self._main_image.update()
-                    if img_3d:
-                        self._image_3d = True
-                        if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
-                            self._edit_button.icon_color = ft.Colors.WHITE60
-                            self._edit_button.disabled = False
-                            self._edit_button.update()
-                        else:
-                            self._edit_button.icon_color = ft.Colors.BLACK12
-                            self._edit_button.disabled = True
-                            self._edit_button.update()
-                        self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
-                        self._slider_2_5d.max = shape[2] - 1
-                        self._slider_2_5d.divisions = shape[2] - 2
-                        self._slider_2_5d.disabled = False
-                        self._slider_2_5d.update()
-                    else:
-                        self._image_3d = False
-                        if self._edit_allowed:
-                            self._edit_button.icon_color = ft.Colors.WHITE60
-                            self._edit_button.disabled = False
-                            self._edit_button.update()
-                        self._slider_2_5d.value = 0
-                        self._slider_2_5d.max = 1
-                        self._slider_2_5d.divisions = None
-                        self._slider_2_5d.disabled = True
-                        self._slider_2_5d.update()
-                    return
-
+                    self._load_main_image_with_path(self._main_paths[img_id][channel_id])
         self._image_3d = False
         self._main_image.src = "Placeholder"
         self._mask_image.visible = False
@@ -273,8 +241,7 @@ class ImageEditingView(ft.Card):
             self.update_mask_image()
 
     def _load_main_image_with_path(self,path):
-        #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
-        src, shape, img_3d = load_image(path, get_slice=-1)
+        src, shape, img_3d = load_image(path, get_slice=self._slice_id)
         self._main_image.src = src
         self._main_image.visible = True
         self.drawing_tool.set_bounds(shape[1],shape[0])
@@ -282,9 +249,10 @@ class ImageEditingView(ft.Card):
         if img_3d:
             self._image_3d = True
             if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
-                self._edit_button.icon_color = ft.Colors.WHITE60
-                self._edit_button.disabled = False
-                self._edit_button.update()
+                if self._edit_button.disabled:
+                    self._edit_button.icon_color = ft.Colors.WHITE60
+                    self._edit_button.disabled = False
+                    self._edit_button.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
                 self._edit_button.disabled = True
@@ -298,9 +266,10 @@ class ImageEditingView(ft.Card):
         else:
             self._image_3d = False
             if self._edit_allowed:
-                self._edit_button.icon_color = ft.Colors.WHITE60
-                self._edit_button.disabled = False
-                self._edit_button.update()
+                if self._edit_button.disabled:
+                    self._edit_button.icon_color = ft.Colors.WHITE60
+                    self._edit_button.disabled = False
+                    self._edit_button.update()
             self._slider_2_5d.value = 0
             self._slider_2_5d.max = 1
             self._slider_2_5d.divisions = None
