@@ -461,6 +461,12 @@ class ImageEditingView(ft.Card):
                             "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
 
         self.update_mask_image()
+        if not self._mask_image.visible:
+            self._mask_image.visible = True
+            self._mask_image.update()
+            self._mask_button.icon_color = ft.Colors.WHITE
+            self._mask_button.tooltip = "Hide mask"
+            self._mask_button.update()
         self.on_mask_change(self._image_id)
 
     def _delete_cell(self, pos: tuple):
