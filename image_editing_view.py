@@ -83,6 +83,7 @@ class ImageEditingView(ft.Card):
         self._main_paths = None
         self._mask_path = None #Could set a mask_path for TESTING
         self._slice_id = -1
+        self._image_3d = False
         self._image_id = None
         self._channel_id = None
         self._seg_channel_id = None
@@ -215,6 +216,7 @@ class ImageEditingView(ft.Card):
                     self.drawing_tool.set_bounds(shape[1], shape[0])
                     self._main_image.update()
                     if img_3d:
+                        self._image_3d = True
                         if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
                             self._edit_button.icon_color = ft.Colors.WHITE60
                             self._edit_button.disabled = False
@@ -229,6 +231,7 @@ class ImageEditingView(ft.Card):
                         self._slider_2_5d.disabled = False
                         self._slider_2_5d.update()
                     else:
+                        self._image_3d = False
                         if self._edit_allowed:
                             self._edit_button.icon_color = ft.Colors.WHITE60
                             self._edit_button.disabled = False
@@ -240,6 +243,7 @@ class ImageEditingView(ft.Card):
                         self._slider_2_5d.update()
                     return
 
+        self._image_3d = False
         self._main_image.src = "Placeholder"
         self._mask_image.visible = False
         self._main_image.update()
@@ -271,6 +275,7 @@ class ImageEditingView(ft.Card):
         self.drawing_tool.set_bounds(shape[1],shape[0])
         self._main_image.update()
         if img_3d:
+            self._image_3d = True
             if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
                 self._edit_button.icon_color = ft.Colors.WHITE60
                 self._edit_button.disabled = False
@@ -286,6 +291,7 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
         else:
+            self._image_3d = False
             if self._edit_allowed:
                 self._edit_button.icon_color = ft.Colors.WHITE60
                 self._edit_button.disabled = False
@@ -405,7 +411,7 @@ class ImageEditingView(ft.Card):
                 self._mask_paths[self._image_id] = {}
             self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
             image_width, image_height = self.drawing_tool.get_bounds()
-            if self._slice_id == -1:
+            if not self._image_3d:
                 #2D Case
                 empty_mask = {
                     "masks": np.zeros((image_height, image_width), dtype=np.uint8),
