@@ -310,8 +310,8 @@ class ImageEditingView(ft.Card):
     def update_mask_image(self):
         if self._mask_path is not None:
             self._update_mask_image()
-        elif self._mask_paths is not None and self._image_id in self._mask_paths and self._channel_id in self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._channel_id] is not None:
-            self._mask_path = self._mask_paths[self._image_id][self._channel_id]
+        elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
+            self._mask_path = self._mask_paths[self._image_id][self._seg_channel_id]
             self._update_mask_image()
         else:
             self._mask_image.src = "Placeholder"
