@@ -214,6 +214,7 @@ class ImageEditingView(ft.Card):
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
                     self._load_main_image_with_path(self._main_paths[img_id][channel_id])
+                    return
         self._image_3d = False
         self._main_image.src = "Placeholder"
         self._mask_image.visible = False
