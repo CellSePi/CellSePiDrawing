@@ -400,7 +400,7 @@ class ImageEditingView(ft.Card):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         if self._mask_path is None: #currently no mask is given
-            if self._image_id is None or self._seg_channel_id is None:
+            if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]:
                 return
             image_path = self._main_paths[self._image_id][self._seg_channel_id]
             directory, filename = os.path.split(image_path)
