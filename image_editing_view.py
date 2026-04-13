@@ -196,6 +196,9 @@ class ImageEditingView(ft.Card):
         self._mask_button.icon_color = ft.Colors.BLACK12
         self._mask_button.disabled = True
         self._mask_button.update()
+        self._edit_button.icon_color = ft.Colors.BLACK12
+        self._edit_button.disabled = True
+        self._edit_button.update()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
@@ -264,8 +267,10 @@ class ImageEditingView(ft.Card):
             self._slice_id = int(self._slider_2_5d.value)
         else:
             self._slice_id = -1
-        self._load_main_image(self._image_id,self._channel_id)
-        self.update_mask_image()
+
+        if self._main_image.src != "Placeholder":
+            self._load_main_image(self._image_id,self._channel_id)
+            self.update_mask_image()
 
     def _load_main_image_with_path(self,path):
         #ONLY FOR TESTING TODO:DELETE AFTER IMPLEMENTING IN CELLSEPI
