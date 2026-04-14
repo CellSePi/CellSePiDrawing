@@ -450,7 +450,7 @@ class ImageEditingView(ft.Card):
         free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
-        self._undo_button.icon_color = ft.Colors.WHITE
+        self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
 
@@ -612,13 +612,6 @@ class ImageEditingView(ft.Card):
         self._undo_button.update()
         first_list_item = self._redo_stack.pop()
 
-        if first_list_item[0] == "delete_action":
-            self._delete_cell(first_list_item[1])
-        elif first_list_item[0] == "draw_action":
-            self._cell_drawn(first_list_item[1])
-        else:
-            raise KeyError("no valid action for redo button")
-
         if len(self._redo_stack) == 0:
             self._redo_button.icon_color = ft.Colors.BLACK_12
             self._redo_button.disabled = True
@@ -628,6 +621,13 @@ class ImageEditingView(ft.Card):
             self._undo_button.disabled = True
             self._undo_button.update()
 
+        if first_list_item[0] == "delete_action":
+            self._delete_cell(first_list_item[1])
+        elif first_list_item[0] == "draw_action":
+            self._cell_drawn(first_list_item[1])
+        else:
+            raise KeyError("no valid action for redo button")
+
     def undo_stack(self,e):
         if self._undo_stack.__sizeof__() == 0 or not self._mask_image.visible:
             return
@@ -636,12 +636,6 @@ class ImageEditingView(ft.Card):
         self._redo_button.disabled = False
         self._redo_button.update()
         first_list_item = self._undo_stack.pop()
-        if first_list_item[0] == "delete_action":
-            self._delete_cell(first_list_item[1])
-        elif first_list_item[0] == "draw_action":
-            self._cell_drawn(first_list_item[1])
-        else:
-            raise KeyError("no valid action for undo button")
 
         self._redo_stack.append(self._undo_stack.pop())
         if len(self._redo_stack) == 0:
@@ -652,4 +646,12 @@ class ImageEditingView(ft.Card):
             self._undo_button.icon_color = ft.Colors.BLACK_12
             self._undo_button.disabled = True
             self._undo_button.update()
+
+        if first_list_item[0] == "delete_action":
+            self._delete_cell(first_list_item[1])
+        elif first_list_item[0] == "draw_action":
+            self._cell_drawn(first_list_item[1])
+        else:
+            raise KeyError("no valid action for undo button")
+
 
