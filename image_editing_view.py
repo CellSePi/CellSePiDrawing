@@ -281,14 +281,15 @@ class ImageEditingView(ft.Card):
         if self._main_image.src != "Placeholder":
             self._load_main_image(self._image_id,self._channel_id)
             self.update_mask_image()
-            self._redo_stack.clear()
-            self._undo_stack.clear()
-            self._redo_button.disabled = True
-            self._undo_button.disabled = True
-            self._redo_button.icon_color = ft.Colors.BLACK_12
-            self._undo_button.icon_color = ft.Colors.BLACK_12
-            self._redo_button.update()
-            self._undo_button.update()
+            if self._image_3d:
+                self._redo_stack.clear()
+                self._undo_stack.clear()
+                self._redo_button.disabled = True
+                self._undo_button.disabled = True
+                self._redo_button.icon_color = ft.Colors.BLACK_12
+                self._undo_button.icon_color = ft.Colors.BLACK_12
+                self._redo_button.update()
+                self._undo_button.update()
 
     def _load_main_image_with_path(self,path):
         src, shape, img_3d = load_image(path, get_slice=self._slice_id)
