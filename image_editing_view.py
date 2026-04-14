@@ -82,6 +82,7 @@ class ImageEditingView(ft.Card):
         self._mask_paths = None
         self._main_paths = None
         self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy" #Could set a mask_path for TESTING
+        self._mask_data = None
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -203,6 +204,7 @@ class ImageEditingView(ft.Card):
         self._main_image.visible = False
         self._main_image.update()
         self._mask_path = None
+        self._mask_data = None
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_image.update()
@@ -308,11 +310,13 @@ class ImageEditingView(ft.Card):
         if self._mask_paths is not None:
             if img_id in self._mask_paths:
                 if seg_channel_id in self._mask_paths[img_id]:
-                    mask_data = np.load(
-                        Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
-                    self._mask_path = self._mask_paths[img_id][seg_channel_id]
-                    mask = mask_data["masks"].astype(np.uint16)
-                    outline = mask_data["outlines"].astype(np.uint16)
+                    new_path = self._mask_paths[img_id][seg_channel_id]
+                    if new_path != self._mask_path:
+                        self._mask_data = np.load(
+                            Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
+                        self._mask_path = new_path
+                    mask = self._mask_data["masks"].astype(np.uint16)
+                    outline = self._mask_data["outlines"].astype(np.uint16)
                     self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
@@ -323,6 +327,7 @@ class ImageEditingView(ft.Card):
                     return
 
         self._mask_path = None
+        self._mask_data = None
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_image.update()
@@ -352,10 +357,10 @@ class ImageEditingView(ft.Card):
             self._mask_button.tooltip = "Show mask"
             self._mask_button.disabled = False
             self._mask_button.update()
-        mask_data = np.load(
-            Path(self._mask_path), allow_pickle=True).item()
-        mask = mask_data["masks"].astype(np.uint16)
-        outline = mask_data["outlines"].astype(np.uint16)
+        if self._mask_data is None:
+            self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        mask = self._mask_data["masks"].astype(np.uint16)
+        outline = self._mask_data["outlines"].astype(np.uint16)
         self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
                                                      self.mask_opacity, slice_id=self._slice_id)
         self._mask_image.update()
@@ -433,10 +438,10 @@ class ImageEditingView(ft.Card):
             for line in lines_data:
                 pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
                 line_pixels.update(pixels)
-
-        mask_data = np.load(self._mask_path, allow_pickle=True).item()
-        mask = mask_data["masks"].astype(np.uint16)
-        outline = mask_data["outlines"].astype(np.uint16)
+        if self._mask_data is None:
+            mask_data = np.load(self._mask_path, allow_pickle=True).item()
+        mask = self._mask_data["masks"].astype(np.uint16)
+        outline = self._mask_data["outlines"].astype(np.uint16)
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
@@ -508,10 +513,11 @@ class ImageEditingView(ft.Card):
         if self._mask_path is None:
             return
 
-        mask_data = np.load(self._mask_path, allow_pickle=True).item()
+        if self._mask_data is None:
+            self._mask_data = np.load(self._mask_path, allow_pickle=True).item()
 
-        mask = mask_data["masks"].astype(np.uint16)
-        outline = mask_data["outlines"].astype(np.uint16)
+        mask = self._mask_data["masks"].astype(np.uint16)
+        outline = self._mask_data["outlines"].astype(np.uint16)
 
         if mask.ndim == 3:
             if self._slice_id < 0:
@@ -544,13 +550,13 @@ class ImageEditingView(ft.Card):
         mask[cell_mask] = 0
         outline[cell_outline] = 0
         if self._shifting_check_box.selected:
-            mask_shifting(mask_data, cell_id, self._slice_id)
+            mask_shifting(self._mask_data, cell_id, self._slice_id)
 
         mask_3d = None
         outline_3d = None
         if self._slice_id >= 0:
-            mask_3d = mask_data["masks"]
-            outline_3d = mask_data["outlines"]
+            mask_3d = self._mask_data["masks"]
+            outline_3d = self._mask_data["outlines"]
 
             if mask_3d.ndim == 3:
                 mask_3d[self._slice_id, :, :] = mask
@@ -583,6 +589,7 @@ class ImageEditingView(ft.Card):
                 if self._mask_paths and self._image_id in self._mask_paths:
                     self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
                 self._mask_path = None
+                self._mask_data = None
                 self._redo_stack.clear()
                 self._undo_stack.clear()
                 self._redo_button.disabled = True
