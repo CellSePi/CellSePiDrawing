@@ -536,7 +536,7 @@ class ImageEditingView(ft.Card):
         cell_outline = (outline == cell_id).copy()
         # add line data to the undo stack to draw the cell later out of the line
         self._undo_stack.append(("draw_action", cell_outline))
-        self._undo_button.icon_color = ft.Colors.WHITE
+        self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
         #------
