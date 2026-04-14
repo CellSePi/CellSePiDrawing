@@ -21,9 +21,9 @@ def load_image(image_path,get_slice=-1):
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
-            image = np.take(image, get_slice, axis=2)
+            image = np.take(image, get_slice, axis=2).astype(np.uint16)
         else:
-            image = np.max(image, axis=2)
+            image = np.max(image, axis=2).astype(np.uint16)
 
     _, buffer = cv2.imencode('.png', image)
 
@@ -41,17 +41,17 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
 
     if mask.ndim == 3:
         if slice_id >= 0:
-            mask = np.take(mask, slice_id, axis=0)
+            mask = np.take(mask, slice_id, axis=0).astype(np.uint16)
         else:
-            mask = np.max(mask, axis=0)
+            mask = np.max(mask, axis=0).astype(np.uint16)
 
     if outline.ndim == 3:
         if slice_id >= 0:
-            outline = np.take(outline, slice_id, axis=0)
+            outline = np.take(outline, slice_id, axis=0).astype(np.uint16)
         else:
-            outline = np.max(outline, axis=0)
+            outline = np.max(outline, axis=0).astype(np.uint16)
 
-    image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint16)
+    image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
     r,g,b = mask_color
     image_mask[mask != 0] = (r, g, b, opacity)
     r, g, b = outline_color
@@ -415,12 +415,12 @@ class ImageEditingView(ft.Card):
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0)
+            mask = np.take(mask, self._slice_id, axis=0).astype(np.uint16)
 
         if outline.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0)
+            outline = np.take(outline, self._slice_id, axis=0).astype(np.uint16)
 
         free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
 
@@ -482,12 +482,12 @@ class ImageEditingView(ft.Card):
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0)
+            mask = np.take(mask, self._slice_id, axis=0).astype(np.uint16)
 
         if outline.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0)
+            outline = np.take(outline, self._slice_id, axis=0).astype(np.uint16)
 
         cell_id = _get_cell_id_from_position(pos, mask)
 
