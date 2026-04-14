@@ -51,7 +51,7 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
         else:
             outline = np.max(outline, axis=0)
 
-    image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
+    image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint16)
     r,g,b = mask_color
     image_mask[mask != 0] = (r, g, b, opacity)
     r, g, b = outline_color
@@ -135,12 +135,12 @@ class ImageEditingView(ft.Card):
             on_change=lambda e: self._slider2d_update(e)
         )
         self._shifting_check_box = ft.IconButton(
-            icon=ft.Icons.EXPAND,
+            icon=ft.CupertinoIcons.SQUARE_LINE_VERTICAL_SQUARE,
             icon_color=ft.Colors.WHITE60,
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12),),
             hover_color=ft.Colors.WHITE12,
-            selected_icon=ft.Icons.COMPRESS_ROUNDED,
+            selected_icon=ft.CupertinoIcons.SQUARE_SPLIT_2X1,
             selected_icon_color=ft.Colors.WHITE,
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
@@ -391,14 +391,14 @@ class ImageEditingView(ft.Card):
             if not self._image_3d:
                 #2D Case
                 empty_mask = {
-                    "masks": np.zeros((image_height, image_width), dtype=np.uint8),
-                    "outlines": np.zeros((image_height, image_width), dtype=np.uint8)
+                    "masks": np.zeros((image_height, image_width), dtype=np.uint16),
+                    "outlines": np.zeros((image_height, image_width), dtype=np.uint16)
                 }
             else:
                 #3D-Image Case (with Z-Slices)
                 empty_mask = {
-                    "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint8),
-                    "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint8)
+                    "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16),
+                    "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
                 }
             #Save the new empty mask
             np.save(self._mask_path, empty_mask)
@@ -425,7 +425,7 @@ class ImageEditingView(ft.Card):
         free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
 
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
-        new_cell_outline = np.zeros_like(outline, dtype=np.uint8)
+        new_cell_outline = np.zeros_like(outline, dtype=np.uint16)
         for x, y in line_pixels:
             if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
                 new_cell_outline[y, x] = 1

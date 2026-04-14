@@ -143,7 +143,7 @@ def fill_polygon_from_outline(contour, mask_shape):
     Returns:
         mask: the adapted mask with newly filled cells
     """
-    mask = np.zeros(mask_shape, dtype=np.uint8)
+    mask = np.zeros(mask_shape, dtype=np.uint16)
     if not contour:
         return mask
 
