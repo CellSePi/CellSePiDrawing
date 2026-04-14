@@ -227,8 +227,8 @@ class ImageEditingView(ft.Card):
         self._undo_stack.clear()
         self._redo_button.disabled = True
         self._undo_button.disabled = True
-        self._redo_button.icon_color = ft.Colors.White_60
-        self._undo_button.icon_color = ft.Colors.White_60
+        self._redo_button.icon_color = ft.Colors.WHITE_60
+        self._undo_button.icon_color = ft.Colors.WHITE_60
         self._redo_button.update()
         self._undo_button.update()
 
