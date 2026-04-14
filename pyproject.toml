@@ -5,7 +5,8 @@ description = "CellSePiDrawing provides the image editing view for the CellSePi 
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    { name = "Florian Hock", email = "fhock2002@gmail.com" }
+    { name = "Florian Hock"},
+    { name = "Jenna Ahlvers"}
 ]
 dependencies = [
     "flet>=0.84.0",
