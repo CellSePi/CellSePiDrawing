@@ -149,12 +149,12 @@ class ImageEditingView(ft.Card):
             on_change=lambda e: self._slider2d_update(e)
         )
         self._shifting_check_box = ft.IconButton(
-            icon=ft.CupertinoIcons.SQUARE_LINE_VERTICAL_SQUARE,
+            icon=ft.Icons.EXPAND,
             icon_color=ft.Colors.WHITE60,
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12),),
             hover_color=ft.Colors.WHITE12,
-            selected_icon=ft.CupertinoIcons.SQUARE_SPLIT_2X1,
+            selected_icon=ft.Icons.COMPRESS_ROUNDED,
             selected_icon_color=ft.Colors.WHITE,
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
