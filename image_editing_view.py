@@ -116,7 +116,7 @@ class ImageEditingView(ft.Card):
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12),), on_click=lambda e: self._show_mask(),
-                                          tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=False)
+                                          tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=True)
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
@@ -226,9 +226,9 @@ class ImageEditingView(ft.Card):
         self._edit_button.icon_color = ft.Colors.BLACK12
         self._edit_button.disabled = True
         self._edit_button.update()
-        self._mask_button.icon_color = ft.Colors.BLACK_12
-        self._mask_button.disabled = True
-        self._mask_button.update()
+        self._delete_button.icon_color = ft.Colors.BLACK_12
+        self._delete_button.disabled = True
+        self._delete_button.update()
         self.drawing_tool.deactivate_drawing()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
@@ -304,18 +304,18 @@ class ImageEditingView(ft.Card):
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
                     self._edit_button.update()
-                if self._mask_button.disabled:
-                    self._mask_button.icon_color = ft.Colors.WHITE60
-                    self._mask_button.disabled = False
-                    self._mask_button.update()
+                if self._delete_button.disabled:
+                    self._delete_button.icon_color = ft.Colors.WHITE60
+                    self._delete_button.disabled = False
+                    self._delete_button.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
                 self._edit_button.disabled = True
                 self._edit_button.update()
                 self.drawing_tool.deactivate_drawing()
-                self._mask_button.icon_color = ft.Colors.BLACK_12
-                self._mask_button.disabled = True
-                self._mask_button.update()
+                self._delete_button.icon_color = ft.Colors.BLACK_12
+                self._delete_button.disabled = True
+                self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[2] - 1
@@ -329,10 +329,10 @@ class ImageEditingView(ft.Card):
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
                     self._edit_button.update()
-                if self._mask_button.disabled:
-                    self._mask_button.icon_color = ft.Colors.WHITE60
-                    self._mask_button.disabled = False
-                    self._mask_button.update()
+                if self._delete_button.disabled:
+                    self._delete_button.icon_color = ft.Colors.WHITE60
+                    self._delete_button.disabled = False
+                    self._delete_button.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
