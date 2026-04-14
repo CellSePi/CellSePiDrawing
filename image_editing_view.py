@@ -230,6 +230,16 @@ class ImageEditingView(ft.Card):
         self._delete_button.disabled = True
         self._delete_button.update()
         self.drawing_tool.deactivate_drawing()
+        self._redo_stack.clear()
+        self._undo_stack.clear()
+        self._redo_button.disabled = True
+        self._undo_button.disabled = True
+        self._redo_button.icon_color = ft.Colors.BLACK_12
+        self._redo_button.disabled = True
+        self._undo_button.icon_color = ft.Colors.BLACK_12
+        self._undo_button.disabled = True
+        self._redo_button.update()
+        self._undo_button.update()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
