@@ -48,7 +48,7 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
 
     if outline.ndim == 3:
         if slice_id >= 0:
-            outline = np.take(outline, slice_id, axis=2)
+            outline = outline[slice_id, :, :]
         else:
             outline = outline.any(axis=0)
 
@@ -621,7 +621,7 @@ class ImageEditingView(ft.Card):
         self.page.update()
 
     def redo_stack(self,e):
-        if self._redo_stack.__sizeof__() == 0 or not self._mask_image.visible:
+        if len(self._redo_stack) == 0 or not self._mask_image.visible:
             return
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
@@ -645,7 +645,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.update()
 
     def undo_stack(self,e):
-        if self._undo_stack.__sizeof__() == 0 or not self._mask_image.visible:
+        if len(self._undo_stack) == 0 or not self._mask_image.visible:
             return
 
         self._redo_button.icon_color = ft.Colors.WHITE_60
