@@ -609,7 +609,7 @@ class ImageEditingView(ft.Card):
         self._undo_button.disabled = False
         self._undo_button.update()
         first_list_item = self._redo_stack.pop()
-        print("redo action:", first_list_item)
+
 
         if first_list_item[0] == "delete_action":
             self._delete_cell(first_list_item[1])
