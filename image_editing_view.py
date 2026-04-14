@@ -226,6 +226,9 @@ class ImageEditingView(ft.Card):
         self._edit_button.icon_color = ft.Colors.BLACK12
         self._edit_button.disabled = True
         self._edit_button.update()
+        self._mask_button.icon_color = ft.Colors.BLACK_12
+        self._mask_button.disabled = True
+        self._mask_button.update()
         self.drawing_tool.deactivate_drawing()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
@@ -300,11 +303,19 @@ class ImageEditingView(ft.Card):
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
                     self._edit_button.update()
+                if self._mask_button.disabled:
+                    self._mask_button.icon_color = ft.Colors.WHITE60
+                    self._mask_button.disabled = False
+                    self._mask_button.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
                 self._edit_button.disabled = True
                 self._edit_button.update()
                 self.drawing_tool.deactivate_drawing()
+                self._mask_button.icon_color = ft.Colors.BLACK_12
+                self._mask_button.disabled = True
+                self._mask_button.update()
+                self.drawing_tool.deactivate_delete()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[2] - 1
             self._slider_2_5d.divisions = shape[2] - 2
@@ -317,6 +328,10 @@ class ImageEditingView(ft.Card):
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
                     self._edit_button.update()
+                if self._mask_button.disabled:
+                    self._mask_button.icon_color = ft.Colors.WHITE60
+                    self._mask_button.disabled = False
+                    self._mask_button.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
@@ -440,19 +455,16 @@ class ImageEditingView(ft.Card):
             image_width, image_height = self.drawing_tool.get_bounds()
             if not self._image_3d:
                 #2D Case
-                empty_mask = {
+                self._mask_data = {
                     "masks": np.zeros((image_height, image_width), dtype=np.uint16),
                     "outlines": np.zeros((image_height, image_width), dtype=np.uint16)
                 }
             else:
                 #3D-Image Case (with Z-Slices)
-                empty_mask = {
+                self._mask_data = {
                     "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16),
                     "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
                 }
-            #Save the new empty mask
-            np.save(self._mask_path, empty_mask)
-
 
         line_pixels = set()
         if type(lines_data) is list:
@@ -629,7 +641,7 @@ class ImageEditingView(ft.Card):
         self.page.update()
 
     def redo_stack(self,e):
-        if len(self._redo_stack) == 0 or not self._mask_image.visible:
+        if len(self._redo_stack) == 0:
             return
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
@@ -653,7 +665,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.update()
 
     def undo_stack(self,e):
-        if len(self._undo_stack) == 0 or not self._mask_image.visible:
+        if len(self._undo_stack) == 0:
             return
 
         self._redo_button.icon_color = ft.Colors.WHITE_60
