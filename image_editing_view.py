@@ -305,8 +305,8 @@ class ImageEditingView(ft.Card):
                 self._edit_button.disabled = True
                 self._edit_button.update()
                 self.drawing_tool.deactivate_drawing()
-            self._slider_2_5d.value = 0 if shape[
-                                               -2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+            self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+            self._slice_id = 0
             self._slider_2_5d.max = shape[2] - 1
             self._slider_2_5d.divisions = shape[2] - 2
             self._slider_2_5d.disabled = False
@@ -319,6 +319,7 @@ class ImageEditingView(ft.Card):
                     self._edit_button.disabled = False
                     self._edit_button.update()
             self._slider_2_5d.value = 0
+            self._slice_id = -1
             self._slider_2_5d.max = 1
             self._slider_2_5d.divisions = None
             self._slider_2_5d.disabled = True
