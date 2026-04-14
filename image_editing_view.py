@@ -494,9 +494,10 @@ class ImageEditingView(ft.Card):
 
             if outline_3d.ndim == 3:
                 outline_3d[self._slice_id, :, :] = outline
+        self._mask_data = {"masks": mask if self._slice_id == -1 else mask_3d,
+                            "outlines": outline if self._slice_id == -1 else outline_3d}
 
-        np.save(self._mask_path, {"masks": mask if self._slice_id == -1 else mask_3d,
-                            "outlines": outline if self._slice_id == -1 else outline_3d}, allow_pickle=True)
+        np.save(self._mask_path, self._mask_data, allow_pickle=True)
 
         self.update_mask_image()
         if not self._mask_image.visible:
@@ -567,9 +568,10 @@ class ImageEditingView(ft.Card):
         final_masks = mask if self._slice_id == -1 else mask_3d
         final_outlines = outline if self._slice_id == -1 else outline_3d
 
-        np.save(self._mask_path, {"masks": final_masks,
-                                  "outlines": final_outlines}, allow_pickle=True)
+        self._mask_data = {"masks": final_masks,
+                           "outlines": final_outlines}
 
+        np.save(self._mask_path, self._mask_data, allow_pickle=True)
 
         self.update_mask_image()
         self.on_mask_change(self._image_id)
