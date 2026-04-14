@@ -109,15 +109,15 @@ class ImageEditingView(ft.Card):
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
-                                          tooltip="Draw Mode", hover_color=ft.Colors.WHITE_12,on_click=lambda e:self._toggle_draw())
+                                          tooltip="Draw mode", hover_color=ft.Colors.WHITE_12,on_click=lambda e:self._toggle_draw())
         self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.WHITE_60,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
-                                          tooltip="Delete Mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
+                                          tooltip="Delete mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
         self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Delete the complete mask.", hover_color=ft.Colors.WHITE12,
+                                            tooltip="Delete the complete mask", hover_color=ft.Colors.WHITE12,
                                             on_click=lambda e: self.delete_mask())
         self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                             style=ft.ButtonStyle(
@@ -497,8 +497,6 @@ class ImageEditingView(ft.Card):
         self._mask_data = {"masks": mask if self._slice_id == -1 else mask_3d,
                             "outlines": outline if self._slice_id == -1 else outline_3d}
 
-        np.save(self._mask_path, self._mask_data, allow_pickle=True)
-
         self.update_mask_image()
         if not self._mask_image.visible:
             self._mask_image.visible = True
@@ -506,6 +504,8 @@ class ImageEditingView(ft.Card):
             self._mask_button.icon_color = ft.Colors.WHITE
             self._mask_button.tooltip = "Hide mask"
             self._mask_button.update()
+
+        np.save(self._mask_path, self._mask_data, allow_pickle=True)
         self.on_mask_change(self._image_id)
 
     def _delete_cell(self, pos: tuple | int):
@@ -571,9 +571,8 @@ class ImageEditingView(ft.Card):
         self._mask_data = {"masks": final_masks,
                            "outlines": final_outlines}
 
-        np.save(self._mask_path, self._mask_data, allow_pickle=True)
-
         self.update_mask_image()
+        np.save(self._mask_path, self._mask_data, allow_pickle=True)
         self.on_mask_change(self._image_id)
 
     def delete_mask(self):
