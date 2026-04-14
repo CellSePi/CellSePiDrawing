@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import os
 import typing
@@ -21,7 +22,7 @@ def load_image(image_path,get_slice=-1):
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
-            image = image[get_slice]
+            image = image[:, :, get_slice]
         else:
             image = np.max(image, axis=2)
 
@@ -39,19 +40,19 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     """
     if mask.ndim == 3:
         if slice_id >= 0:
-            mask = mask[slice_id] != 0
+            mask = mask[slice_id, :, :]
         else:
             mask = mask.any(axis=0)
-    else:
-        mask = mask != 0
+
+    mask = mask != 0
 
     if outline.ndim == 3:
         if slice_id >= 0:
-            outline = outline[slice_id] != 0
+            outline = np.take(outline, slice_id, axis=2)
         else:
             outline = outline.any(axis=0)
-    else:
-        outline = outline != 0
+
+    outline = outline != 0
 
     image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
 
@@ -97,6 +98,7 @@ class ImageEditingView(ft.Card):
         self._image_id = None
         self._channel_id = None
         self._seg_channel_id = None
+        self._save_task = None
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
@@ -516,7 +518,7 @@ class ImageEditingView(ft.Card):
             self._mask_button.tooltip = "Hide mask"
             self._mask_button.update()
 
-        np.save(self._mask_path, self._mask_data, allow_pickle=True)
+        self._trigger_background_save()
         self.on_mask_change(self._image_id)
 
     def _delete_cell(self, pos: tuple | int):
@@ -531,12 +533,12 @@ class ImageEditingView(ft.Card):
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0)
+            mask = mask[self._slice_id, :, :]
 
         if outline.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0)
+            outline = outline[self._slice_id, :, :]
 
         cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
 
@@ -547,10 +549,10 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # Update the mask and outline (delete the cell)
-        cell_mask = (mask == cell_id).copy()
-        cell_outline = (outline == cell_id).copy()
+        cell_mask = (mask == cell_id)
+        cell_outline = (outline == cell_id)
         # add line data to the undo stack to draw the cell later out of the line
-        self._undo_stack.append(("draw_action", cell_outline))
+        self._undo_stack.append(("draw_action", cell_outline.copy()))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
@@ -561,27 +563,19 @@ class ImageEditingView(ft.Card):
         if self._shifting_check_box.selected:
             mask_shifting(self._mask_data, cell_id, self._slice_id)
 
-        mask_3d = None
-        outline_3d = None
-        if self._slice_id >= 0:
-            mask_3d = self._mask_data["masks"]
-            outline_3d = self._mask_data["outlines"]
-
-            if mask_3d.ndim == 3:
-                mask_3d[self._slice_id, :, :] = mask
-
-            if outline_3d.ndim == 3:
-                outline_3d[self._slice_id, :, :] = outline
-
-        final_masks = mask if self._slice_id == -1 else mask_3d
-        final_outlines = outline if self._slice_id == -1 else outline_3d
-
-        self._mask_data = {"masks": final_masks,
-                           "outlines": final_outlines}
-
         self.update_mask_image()
-        np.save(self._mask_path, self._mask_data, allow_pickle=True)
+        self._trigger_background_save()
         self.on_mask_change(self._image_id)
+
+    def _trigger_background_save(self):
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+
+        self._save_task = self.page.run_task(self._save_async)
+
+    async def _save_async(self):
+        if self._mask_path is not None and self._mask_data is not None:
+                await asyncio.to_thread(np.save, self._mask_path, self._mask_data, allow_pickle=True)
 
     def delete_mask(self):
         def cancel_dialog(a):
