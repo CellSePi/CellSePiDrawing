@@ -118,17 +118,17 @@ class ImageEditingView(ft.Card):
                                                 shape=ft.RoundedRectangleBorder(radius=12), ),
                                             tooltip="Delete the complete mask.", hover_color=ft.Colors.WHITE12,
                                             on_click=lambda e: self.delete_mask())
-        self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.WHITE_60,
+        self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Redo action.", hover_color=ft.Colors.WHITE_12,
-                                            on_click=lambda e: self.redo_stack(e))
+                                            tooltip="Redo action", hover_color=ft.Colors.WHITE_12,
+                                            on_click=lambda e: self.redo_stack(e),disabled=True)
 
-        self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.WHITE_60,
+        self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Undo action.", hover_color=ft.Colors.WHITE12,
-                                            on_click=lambda e: self.undo_stack(e))
+                                            tooltip="Undo action", hover_color=ft.Colors.WHITE12,
+                                            on_click=lambda e: self.undo_stack(e),disabled=True)
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}",value=0,
             opacity=1.0 if self._user_2_5d else 0.0, height=20,
