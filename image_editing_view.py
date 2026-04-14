@@ -401,6 +401,8 @@ class ImageEditingView(ft.Card):
             self._mask_button.update()
 
     def _update_mask_image(self):
+        if self._mask_data is None:
+            return
         if not self._mask_image.visible:
             self._mask_button.icon_color = ft.Colors.WHITE60
             self._mask_button.tooltip = "Show mask"
