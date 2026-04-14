@@ -81,7 +81,7 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = None #Could set a mask_path for TESTING
+        self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy" #Could set a mask_path for TESTING
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -94,6 +94,8 @@ class ImageEditingView(ft.Card):
         self.on_mask_change = on_mask_change or (lambda x: None)
         self.mask_suffix = "_seg"
         self.expand=True
+        self._redo_stack = []
+        self._undo_stack = []
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN,visible=False,gapless_playback=True,expand=True)
@@ -116,6 +118,17 @@ class ImageEditingView(ft.Card):
                                                 shape=ft.RoundedRectangleBorder(radius=12), ),
                                             tooltip="Delete the complete mask.", hover_color=ft.Colors.WHITE12,
                                             on_click=lambda e: self.delete_mask())
+        self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.WHITE_60,
+                                            style=ft.ButtonStyle(
+                                                shape=ft.RoundedRectangleBorder(radius=12), ),
+                                            tooltip="Redo action.", hover_color=ft.Colors.WHITE_12,
+                                            on_click=lambda e: self.redo_stack(e))
+
+        self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.WHITE_60,
+                                            style=ft.ButtonStyle(
+                                                shape=ft.RoundedRectangleBorder(radius=12), ),
+                                            tooltip="Undo action.", hover_color=ft.Colors.WHITE12,
+                                            on_click=lambda e: self.undo_stack(e))
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}",value=0,
             opacity=1.0 if self._user_2_5d else 0.0, height=20,
@@ -146,7 +159,9 @@ class ImageEditingView(ft.Card):
             on_click=lambda e: self._toggle_shifting(e),
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
-                [   self._shifting_check_box,
+                [   self._undo_button,
+                    self._redo_button,
+                    self._shifting_check_box,
                     self._edit_button,
                     self._delete_button,
                     self._mask_button,
@@ -168,7 +183,6 @@ class ImageEditingView(ft.Card):
                 ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,
             ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
             ))
-        #TODO: ADD REDO/UNDO
         self.content = ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools],spacing=0)
 
     def set_mask_paths(self, mask_paths: list):
@@ -208,7 +222,15 @@ class ImageEditingView(ft.Card):
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         self._load_main_image(img_id, channel_id)
-        #TODO: reset undo/redo when a new image is selected
+        #reset undo/redo when a new image is selected
+        self._redo_stack.clear()
+        self._undo_stack.clear()
+        self._redo_button.disabled = True
+        self._undo_button.disabled = True
+        self._redo_button.icon_color = ft.Colors.White_60
+        self._undo_button.icon_color = ft.Colors.White_60
+        self._redo_button.update()
+        self._undo_button.update()
 
     def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
@@ -373,7 +395,7 @@ class ImageEditingView(ft.Card):
 
         e.control.update()
 
-    def _cell_drawn(self, lines_data: list):
+    def _cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         if self._mask_path is None: #currently no mask is given
@@ -405,9 +427,10 @@ class ImageEditingView(ft.Card):
 
 
         line_pixels = set()
-        for line in lines_data:
-            pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
-            line_pixels.update(pixels)
+        if type(lines_data) is list:
+            for line in lines_data:
+                pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
+                line_pixels.update(pixels)
 
         mask_data = np.load(self._mask_path, allow_pickle=True).item()
         mask = mask_data["masks"]
@@ -423,14 +446,22 @@ class ImageEditingView(ft.Card):
             outline = np.take(outline, self._slice_id, axis=0)
 
         free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
+        # add action to undo stack to be able to delete the cell afterward
+        self._undo_stack.append(("delete_action", free_id))
+        self._undo_button.icon_color = ft.Colors.WHITE
+        self._undo_button.disabled = False
+        self._undo_button.update()
 
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         new_cell_outline = np.zeros_like(outline, dtype=np.uint8)
-        for x, y in line_pixels:
-            if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
-                new_cell_outline[y, x] = 1
-                if outline[y, x] == 0 and mask[y, x] == 0:
-                    outline[y, x] = free_id
+        if type(lines_data) is list:
+            for x, y in line_pixels:
+                if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
+                    new_cell_outline[y, x] = 1
+                    if outline[y, x] == 0 and mask[y, x] == 0:
+                        outline[y, x] = free_id
+        else:
+            new_cell_outline = lines_data
 
         # Traces the outline of the new cell and fills the mask based on the outline
         contour = trace_contour(new_cell_outline)
@@ -463,7 +494,8 @@ class ImageEditingView(ft.Card):
         self.update_mask_image()
         self.on_mask_change(self._image_id)
 
-    def _delete_cell(self, pos: tuple):
+    def _delete_cell(self, pos: tuple | int):
+
         #delete the cell in the mask data
         if self._mask_path is None:
             return
@@ -483,7 +515,7 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
 
-        cell_id = _get_cell_id_from_position(pos, mask)
+        cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
 
         if not cell_id:
             cell_id_outline = _get_cell_id_from_position(pos, outline)
@@ -494,6 +526,13 @@ class ImageEditingView(ft.Card):
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id).copy()
         cell_outline = (outline == cell_id).copy()
+        # add line data to the undo stack to draw the cell later out of the line
+        self._undo_stack.append(("draw_action", cell_outline))
+        self._undo_button.icon_color = ft.Colors.WHITE
+        self._undo_button.disabled = False
+        self._undo_button.update()
+        #------
+
         mask[cell_mask] = 0
         outline[cell_outline] = 0
         if self._shifting_check_box.selected:
@@ -517,6 +556,7 @@ class ImageEditingView(ft.Card):
         np.save(self._mask_path, {"masks": final_masks,
                                   "outlines": final_outlines}, allow_pickle=True)
 
+
         self.update_mask_image()
         self.on_mask_change(self._image_id)
 
@@ -526,7 +566,7 @@ class ImageEditingView(ft.Card):
             a.control.page.update()
 
         def ok_dialog(a):
-            #TODO: RESET here the undo redo operations
+
             cupertino_alert_dialog.open = False
             a.control.page.update()
             if self._mask_path is not None:
@@ -535,6 +575,14 @@ class ImageEditingView(ft.Card):
                 if self._mask_paths and self._image_id in self._mask_paths:
                     self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
                 self._mask_path = None
+                self._redo_stack.clear()
+                self._undo_stack.clear()
+                self._redo_button.disabled = True
+                self._undo_button.disabled = True
+                self._redo_button.icon_color = ft.Colors.WHITE_60
+                self._undo_button.icon_color = ft.Colors.WHITE_60
+                self._redo_button.update()
+                self._undo_button.update()
                 self.update_mask_image()
                 self.on_mask_change(self._image_id)
 
@@ -553,3 +601,51 @@ class ImageEditingView(ft.Card):
         self.page.overlay.append(cupertino_alert_dialog)
         cupertino_alert_dialog.open = True
         self.page.update()
+
+    def redo_stack(self,e):
+        if self._redo_stack.__sizeof__() == 0 or not self._mask_image.visible:
+            return
+        self._undo_button.icon_color = ft.Colors.WHITE
+        self._undo_button.disabled = False
+        self._undo_button.update()
+        first_list_item = self._redo_stack.pop()
+        print("redo action:", first_list_item)
+
+        if first_list_item[0] == "delete_action":
+            self._delete_cell(first_list_item[1])
+        elif first_list_item[0] == "draw_action":
+            self._cell_drawn(first_list_item[1])
+        else:
+            raise KeyError("no valid action for redo button")
+
+        if len(self._redo_stack) == 0:
+            self._redo_button.icon_color = ft.Colors.WHITE_60
+            self._redo_button.update()
+        if len(self._undo_stack) == 0:
+            self._undo_button.icon_color = ft.Colors.WHITE_60
+            self._undo_button.update()
+
+    def undo_stack(self,e):
+        if self._undo_stack.__sizeof__() == 0 or not self._mask_image.visible:
+            return
+
+        self._redo_button.icon_color = ft.Colors.WHITE
+        self._redo_button.disabled = False
+        self._redo_button.update()
+        first_list_item = self._undo_stack.pop()
+        if first_list_item[0] == "delete_action":
+
+            self._delete_cell(first_list_item[1])
+        elif first_list_item[0] == "draw_action":
+            self._cell_drawn(first_list_item[1])
+        else:
+            raise KeyError("no valid action for undo button")
+
+        self._redo_stack.append(self._undo_stack.pop())
+        if len(self._redo_stack) == 0:
+            self._redo_button.icon_color = ft.Colors.WHITE_60
+            self._redo_button.update()
+        if len(self._undo_stack) == 0:
+            self._undo_button.icon_color = ft.Colors.WHITE_60
+            self._undo_button.update()
+
