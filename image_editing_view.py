@@ -287,8 +287,8 @@ class ImageEditingView(ft.Card):
                     mask_data = np.load(
                         Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
                     self._mask_path = self._mask_paths[img_id][seg_channel_id]
-                    mask = mask_data["masks"]
-                    outline = mask_data["outlines"]
+                    mask = mask_data["masks"].astype(np.uint16)
+                    outline = mask_data["outlines"].astype(np.uint16)
                     self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
@@ -330,8 +330,8 @@ class ImageEditingView(ft.Card):
             self._mask_button.update()
         mask_data = np.load(
             Path(self._mask_path), allow_pickle=True).item()
-        mask = mask_data["masks"]
-        outline = mask_data["outlines"]
+        mask = mask_data["masks"].astype(np.uint16)
+        outline = mask_data["outlines"].astype(np.uint16)
         self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
                                                      self.mask_opacity, slice_id=self._slice_id)
         self._mask_image.update()
@@ -410,8 +410,8 @@ class ImageEditingView(ft.Card):
             line_pixels.update(pixels)
 
         mask_data = np.load(self._mask_path, allow_pickle=True).item()
-        mask = mask_data["masks"]
-        outline = mask_data["outlines"]
+        mask = mask_data["masks"].astype(np.uint16)
+        outline = mask_data["outlines"].astype(np.uint16)
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
@@ -476,8 +476,8 @@ class ImageEditingView(ft.Card):
 
         mask_data = np.load(self._mask_path, allow_pickle=True).item()
 
-        mask = mask_data["masks"]
-        outline = mask_data["outlines"]
+        mask = mask_data["masks"].astype(np.uint16)
+        outline = mask_data["outlines"].astype(np.uint16)
 
         if mask.ndim == 3:
             if self._slice_id < 0:
