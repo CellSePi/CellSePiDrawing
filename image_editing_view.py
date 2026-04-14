@@ -121,9 +121,9 @@ class ImageEditingView(ft.Card):
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
                                           tooltip="Draw mode", hover_color=ft.Colors.WHITE_12,on_click=lambda e:self._toggle_draw())
-        self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.WHITE_60,
+        self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
-                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
                                           tooltip="Delete mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
         self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
                                             style=ft.ButtonStyle(
