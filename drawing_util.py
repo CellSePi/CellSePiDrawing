@@ -31,7 +31,7 @@ def mask_shifting(mask_data,deleted_mask_id:int,slice_id:int|None = None):
     if mask.ndim == 3:
         if slice_id < 0:
             raise ValueError("slice_id should be non-negative")
-        mask_slice = np.take(mask, slice_id, axis=0)
+        mask_slice = np.take(mask, slice_id, axis=0).astype(np.uint16)
         mask_slice[mask_slice>deleted_mask_id] -= 1
         mask[slice_id, :, :] = mask_slice
     else:
@@ -40,7 +40,7 @@ def mask_shifting(mask_data,deleted_mask_id:int,slice_id:int|None = None):
     if outline.ndim == 3:
         if slice_id < 0:
             raise ValueError("slice_id should be non-negative")
-        outline_slice = np.take(outline, slice_id, axis=0)
+        outline_slice = np.take(outline, slice_id, axis=0).astype(np.uint16)
         outline_slice[outline_slice>deleted_mask_id] -= 1
         outline[slice_id, :, :] = outline_slice
     else:
@@ -54,7 +54,7 @@ def search_free_id(mask,outline):
 
     combined = np.concatenate((mask.ravel(),outline.ravel()))
 
-    unique_vals = np.unique(combined)
+    unique_vals = np.unique(combined).astype(np.uint16)
 
     if unique_vals.size == 0:
         return 1
