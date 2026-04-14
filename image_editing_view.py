@@ -21,9 +21,9 @@ def load_image(image_path,get_slice=-1):
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
-            image = np.take(image, get_slice, axis=2).astype(np.uint16)
+            image = image[get_slice]
         else:
-            image = np.max(image, axis=2).astype(np.uint16)
+            image = np.max(image, axis=2)
 
     _, buffer = cv2.imencode('.png', image)
 
@@ -37,29 +37,38 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
         mask= the mask data stored in the numpy directory
         outline= the outline data stored in the numpy directory
     """
-    buffer= BytesIO()
-
     if mask.ndim == 3:
         if slice_id >= 0:
-            mask = np.take(mask, slice_id, axis=0).astype(np.uint16)
+            mask = mask[slice_id] != 0
         else:
-            mask = np.max(mask, axis=0).astype(np.uint16)
+            mask = mask.any(axis=0)
+    else:
+        mask = mask != 0
 
     if outline.ndim == 3:
         if slice_id >= 0:
-            outline = np.take(outline, slice_id, axis=0).astype(np.uint16)
+            outline = outline[slice_id] != 0
         else:
-            outline = np.max(outline, axis=0).astype(np.uint16)
+            outline = outline.any(axis=0)
+    else:
+        outline = outline != 0
 
     image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
-    r,g,b = mask_color
-    image_mask[mask != 0] = (r, g, b, opacity)
-    r, g, b = outline_color
-    image_mask[outline != 0] = (r, g, b, 255)
-    im= Image.fromarray(image_mask).convert("RGBA")
+
+    if mask.any():
+        r,g,b = mask_color
+        image_mask[mask] = (r, g, b, opacity)
+
+    if outline.any():
+        r, g, b = outline_color
+        image_mask[outline] = (r, g, b, 255)
+
+    im= Image.fromarray(image_mask, mode="RGBA")
 
     #saves the image as a image(base64)
-    im.save(buffer, format="PNG")
+    buffer= BytesIO()
+    im.save(buffer, format="PNG", compress_level=1)
+
     buffer.seek(0)
     image_base_64= base64.b64encode(buffer.getvalue()).decode('utf-8')
 
@@ -315,9 +324,10 @@ class ImageEditingView(ft.Card):
                         self._mask_data = np.load(
                             Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
                         self._mask_path = new_path
-                    mask = self._mask_data["masks"].astype(np.uint16)
-                    outline = self._mask_data["outlines"].astype(np.uint16)
-                    self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
+                        self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
+                        self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
+
+                    self._mask_image.src = convert_npy_to_canvas(self._mask_data["masks"], self._mask_data["outlines"], self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
                         self._mask_button.icon_color = ft.Colors.WHITE60
@@ -341,6 +351,9 @@ class ImageEditingView(ft.Card):
             self._update_mask_image()
         elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
             self._mask_path = self._mask_paths[self._image_id][self._seg_channel_id]
+            self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+            self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
+            self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
             self._update_mask_image()
         else:
             self._mask_image.src = "Placeholder"
@@ -357,10 +370,8 @@ class ImageEditingView(ft.Card):
             self._mask_button.tooltip = "Show mask"
             self._mask_button.disabled = False
             self._mask_button.update()
-        if self._mask_data is None:
-            self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
-        mask = self._mask_data["masks"].astype(np.uint16)
-        outline = self._mask_data["outlines"].astype(np.uint16)
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
         self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
                                                      self.mask_opacity, slice_id=self._slice_id)
         self._mask_image.update()
@@ -438,19 +449,19 @@ class ImageEditingView(ft.Card):
             for line in lines_data:
                 pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
                 line_pixels.update(pixels)
-        if self._mask_data is None:
-            mask_data = np.load(self._mask_path, allow_pickle=True).item()
-        mask = self._mask_data["masks"].astype(np.uint16)
-        outline = self._mask_data["outlines"].astype(np.uint16)
+
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
+
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0).astype(np.uint16)
+            mask = np.take(mask, self._slice_id, axis=0)
 
         if outline.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0).astype(np.uint16)
+            outline = np.take(outline, self._slice_id, axis=0)
 
         free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
@@ -486,8 +497,8 @@ class ImageEditingView(ft.Card):
         mask_3d = None
         outline_3d = None
         if self._slice_id >= 0:
-            mask_3d = mask_data["masks"]
-            outline_3d = mask_data["outlines"]
+            mask_3d = self._mask_data["masks"]
+            outline_3d = self._mask_data["outlines"]
 
             if mask_3d.ndim == 3:
                 mask_3d[self._slice_id, :, :] = mask
@@ -514,21 +525,18 @@ class ImageEditingView(ft.Card):
         if self._mask_path is None:
             return
 
-        if self._mask_data is None:
-            self._mask_data = np.load(self._mask_path, allow_pickle=True).item()
-
-        mask = self._mask_data["masks"].astype(np.uint16)
-        outline = self._mask_data["outlines"].astype(np.uint16)
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
 
         if mask.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0).astype(np.uint16)
+            mask = np.take(mask, self._slice_id, axis=0)
 
         if outline.ndim == 3:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0).astype(np.uint16)
+            outline = np.take(outline, self._slice_id, axis=0)
 
         cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
 
