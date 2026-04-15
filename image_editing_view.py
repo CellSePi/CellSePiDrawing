@@ -351,20 +351,21 @@ class ImageEditingView(ft.Card):
     async def load_adjusted_image(self, path):
         return await asyncio.to_thread(load_image,self._image_cache.get_image(path),self.auto_adjust, self._slice_id,self.brightness,self.contrast)
 
-    async def _load_main_image_with_path(self,path):
-        if self._on_click:
-            self.cancel_all_tasks()
-            src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id)
-        else:
-            task = asyncio.create_task(self.load_adjusted_image(path))
-            self._running_tasks.add(task)
-            try:
-                src, shape, img_3d = await task
-            except asyncio.CancelledError:
-                return
-            finally:
-                self._running_tasks.discard(task)
+    async def update_main_image_with_brightness_contrast(self,path):
+        task = asyncio.create_task(self.load_adjusted_image(path))
+        self._main_image.src = src
+        self._main_image.update()
+        self._running_tasks.add(task)
+        try:
+            await task
+        except asyncio.CancelledError:
+            return
+        finally:
+            self._running_tasks.discard(task)
 
+    def _load_main_image_with_path(self,path):
+        self.cancel_all_tasks()
+        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id)
         self._main_image.src = src
         self._main_image.visible = True
         self.drawing_tool.set_bounds(shape[1],shape[0])
