@@ -29,9 +29,6 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
     if auto_adjust:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-        _, buffer = cv2.imencode('.png', image)
-
-        return base64.b64encode(buffer).decode('utf-8'), shape, check
     elif brightness != 1.0 or contrast != 1.0:
         img = Image.fromarray(image)
         if brightness != 1.0:
@@ -44,12 +41,11 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
         buffer = BytesIO()
         img.save(buffer, format="PNG")
         buffer.seek(0)
-
         return base64.b64encode(buffer.getvalue()).decode('utf-8'),shape,check
-    else:
-        _, buffer = cv2.imencode('.png', image)
 
-        return base64.b64encode(buffer).decode('utf-8'), shape, check
+    _, buffer = cv2.imencode('.png', image)
+
+    return base64.b64encode(buffer).decode('utf-8'), shape, check
 
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
