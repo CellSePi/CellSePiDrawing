@@ -11,6 +11,6 @@ def main(page: ft.Page):
     page.add(
         image_editing_view
     )
-    image_editing_view._load_main_image_with_path(Path(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")) #select a image
-    image_editing_view._update_mask_image()
+    page.run_task(image_editing_view._load_main_image_with_path, Path(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")) #select a image
+    image_editing_view.update_mask_image()
 ft.run(main)

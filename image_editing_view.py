@@ -2,6 +2,7 @@ import asyncio
 import base64
 import os
 import typing
+from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
 
@@ -9,15 +10,14 @@ import cv2
 import flet as ft
 import numpy as np
 import tifffile
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 from drawing_tool import DrawingTool
 from drawing_util import bresenham_line, search_free_id, trace_contour, fill_polygon_from_outline, find_border_pixels, \
     mask_shifting, rgb_to_hex
 
 
-def load_image(image_path,get_slice=-1):
-    image = tifffile.imread(image_path)
+def load_image(image,auto_adjust,get_slice=-1, brightness=1.0, contrast=1.0):
     shape = list(image.shape)
     check = image.ndim == 3
     if check:
@@ -25,6 +25,17 @@ def load_image(image_path,get_slice=-1):
             image = image[:, :, get_slice]
         else:
             image = np.max(image, axis=2)
+
+    if auto_adjust:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    else:
+        if brightness != 1.0:
+            enhancer = ImageEnhance.Brightness(image)
+            image = enhancer.enhance(brightness)
+        if contrast != 1.0:
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(contrast)
 
     _, buffer = cv2.imencode('.png', image)
 
@@ -86,6 +97,29 @@ def _get_cell_id_from_position(position, mask):
         return mask[y, x]
     return None
 
+class ImageCache:
+    def __init__(self, max_images=10):
+        self.cache = OrderedDict()
+        self._max_images = max_images
+
+    def get_image(self, path):
+        if path in self.cache:
+            self.cache.move_to_end(path)
+            return self.cache[path]
+        else:
+            image = tifffile.imread(path)
+            self.add_image(path,image)
+            return image
+
+    def add_image(self, path, data):
+        self.cache[path] = data
+        self.cache.move_to_end(path)
+        if len(self.cache) > self._max_images:
+            self.cache.popitem(last=False)
+
+    def clear(self):
+        self.cache.clear()
+
 class ImageEditingView(ft.Card):
     def __init__(self,on_mask_change: typing.Callable[[str], None] = None):
         super().__init__()
@@ -99,6 +133,12 @@ class ImageEditingView(ft.Card):
         self._channel_id = None
         self._seg_channel_id = None
         self._save_task = None
+        self._image_cache = ImageCache()
+        self._running_tasks = set()
+        self.brightness = 1.0
+        self.contrast = 1.0
+        self._on_click = False
+        self.auto_adjust = False
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
@@ -240,11 +280,13 @@ class ImageEditingView(ft.Card):
         self._undo_button.disabled = True
         self._redo_button.update()
         self._undo_button.update()
+        self._image_cache.clear()
 
-    def select_image(self, img_id, channel_id,seg_channel_id):
+    def select_image(self, img_id, channel_id,seg_channel_id, on_click=False):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
             self._load_mask_image(img_id, seg_channel_id)
         self._image_id = img_id
+        self._on_click = on_click
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         self._load_main_image(img_id, channel_id)
@@ -264,7 +306,7 @@ class ImageEditingView(ft.Card):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
-                    self._load_main_image_with_path(self._main_paths[img_id][channel_id])
+                    self.page.run_task(self._load_main_image_with_path,self._main_paths[img_id][channel_id])
                     return
         self._image_3d = False
         self._main_image.src = "Placeholder"
@@ -301,8 +343,28 @@ class ImageEditingView(ft.Card):
                 self._redo_button.update()
                 self._undo_button.update()
 
-    def _load_main_image_with_path(self,path):
-        src, shape, img_3d = load_image(path, get_slice=self._slice_id)
+    def cancel_all_tasks(self):
+        for task in self._running_tasks:
+            task.cancel()
+        self._running_tasks.clear()
+
+    async def load_adjusted_image(self, path):
+        return await asyncio.to_thread(load_image,self._image_cache.get_image(path),self.auto_adjust, self._slice_id,self.brightness,self.contrast)
+
+    async def _load_main_image_with_path(self,path):
+        if self._on_click:
+            self.cancel_all_tasks()
+            src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id)
+        else:
+            task = asyncio.create_task(self.load_adjusted_image(path))
+            self._running_tasks.add(task)
+            try:
+                src, shape, img_3d = await task
+            except asyncio.CancelledError:
+                return
+            finally:
+                self._running_tasks.discard(task)
+
         self._main_image.src = src
         self._main_image.visible = True
         self.drawing_tool.set_bounds(shape[1],shape[0])
