@@ -383,7 +383,7 @@ class ImageEditingView(ft.Card):
 
     def _load_main_image_with_path(self,path):
         self.cancel_all_tasks()
-        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id)
+        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id,brightness=self.brightness,contrast=self.contrast)
         self._main_image.src = src
         self._main_image.visible = True
         self.drawing_tool.set_bounds(shape[1],shape[0])
