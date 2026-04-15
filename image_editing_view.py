@@ -32,7 +32,7 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
         _, buffer = cv2.imencode('.png', image)
 
         return base64.b64encode(buffer).decode('utf-8'), shape, check
-    else:
+    elif brightness != 1.0 or contrast != 1.0:
         img = Image.fromarray(image)
         if brightness != 1.0:
             enhancer = ImageEnhance.Brightness(img)
@@ -46,6 +46,10 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
         buffer.seek(0)
 
         return base64.b64encode(buffer.getvalue()).decode('utf-8'),shape,check
+    else:
+        _, buffer = cv2.imencode('.png', image)
+
+        return base64.b64encode(buffer).decode('utf-8'), shape, check
 
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
