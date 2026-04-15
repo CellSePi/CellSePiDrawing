@@ -306,7 +306,7 @@ class ImageEditingView(ft.Card):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
-                    self.page.run_task(self._load_main_image_with_path,self._main_paths[img_id][channel_id])
+                    self._load_main_image_with_path(self._main_paths[img_id][channel_id])
                     return
         self._image_3d = False
         self._main_image.src = "Placeholder"
