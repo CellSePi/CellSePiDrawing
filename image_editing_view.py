@@ -348,13 +348,23 @@ class ImageEditingView(ft.Card):
             task.cancel()
         self._running_tasks.clear()
 
-    async def load_adjusted_image(self, path):
-        return await asyncio.to_thread(load_image,self._image_cache.get_image(path),self.auto_adjust, self._slice_id,self.brightness,self.contrast)
+    async def _adjust_image_async(self, path, brightness,contrast):
+        return await asyncio.to_thread(load_image,self._image_cache.get_image(path),self.auto_adjust, self._slice_id,brightness,contrast)
 
-    async def update_main_image_with_brightness_contrast(self,path):
-        task = asyncio.create_task(self.load_adjusted_image(path))
+    async def _update_main_image(self, path):
+        """
+        Updates the main image as base64_image with the new brightness and contrast values.
+        """
+        src = await self._adjust_image_async(path,
+            round(self.brightness, 2),
+            round(self.contrast, 2)
+        )
         self._main_image.src = src
         self._main_image.update()
+
+
+    async def update_main_image_with_brightness_contrast(self,path):
+        task = asyncio.create_task(self._update_main_image(path))
         self._running_tasks.add(task)
         try:
             await task
