@@ -364,8 +364,8 @@ class ImageEditingView(ft.Card):
         Updates the main image as base64_image with the new brightness and contrast values.
         """
         src, shape, img_3d = await self._adjust_image_async(path,
-            round(self.brightness, 2),
-            round(self.contrast, 2)
+            self.brightness,
+            self.contrast
         )
         self._main_image.src = src
         self._main_image.update()
