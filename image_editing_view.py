@@ -17,7 +17,7 @@ from drawing_util import bresenham_line, search_free_id, trace_contour, fill_pol
     mask_shifting, rgb_to_hex
 
 
-def load_image(image,auto_adjust,get_slice=-1):
+def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0):
     shape = list(image.shape)
     check = image.ndim == 3
     if check:
@@ -29,32 +29,23 @@ def load_image(image,auto_adjust,get_slice=-1):
     if auto_adjust:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+        _, buffer = cv2.imencode('.png', image)
 
-    _, buffer = cv2.imencode('.png', image)
+        return base64.b64encode(buffer).decode('utf-8'), shape, check
+    else:
+        img = Image.fromarray(image)
+        if brightness != 1.0:
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(brightness)
+        if contrast != 1.0:
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(contrast)
 
-    return base64.b64encode(buffer).decode('utf-8'),shape,check
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
 
-def load_image_brightness_contrast(image,get_slice=-1, brightness=1.0, contrast=1.0):
-    check = image.ndim == 3
-    if check:
-        if not get_slice == -1:
-            image = image[:, :, get_slice]
-        else:
-            image = np.max(image, axis=2)
-
-    img = Image.fromarray(image)
-    if brightness != 1.0:
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(brightness)
-    if contrast != 1.0:
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(contrast)
-
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return base64.b64encode(buffer.getvalue()).decode('utf-8'),shape,check
 
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
@@ -297,6 +288,7 @@ class ImageEditingView(ft.Card):
         self._redo_button.update()
         self._undo_button.update()
         self._image_cache.clear()
+        self.cancel_all_tasks()
 
     def select_image(self, img_id, channel_id,seg_channel_id, on_click=False):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
@@ -365,7 +357,7 @@ class ImageEditingView(ft.Card):
         self._running_tasks.clear()
 
     async def _adjust_image_async(self, path, brightness,contrast):
-        return await asyncio.to_thread(load_image_brightness_contrast,self._image_cache.get_image(path), self._slice_id,brightness,contrast)
+        return await asyncio.to_thread(load_image,self._image_cache.get_image(path),False, self._slice_id,brightness,contrast)
 
     async def _update_main_image(self, path):
         """
