@@ -208,11 +208,11 @@ class ImageEditingView(ft.Card):
             on_change=lambda e: self._slider2d_update(e)
         )
         self._shifting_check_box = ft.IconButton(
-            icon=ft.Icon(ft.Icons.EXPAND,rotate=math.radians(90),color=ft.Colors.WHITE60),
+            icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED,color=ft.Colors.WHITE60),
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12),),
             hover_color=ft.Colors.WHITE12,
-            selected_icon=ft.Icon(ft.Icons.COMPRESS_ROUNDED,rotate=math.radians(90),color=ft.Colors.WHITE),
+            selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED,color=ft.Colors.WHITE),
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
         )
