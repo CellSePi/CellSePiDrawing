@@ -15,6 +15,7 @@ class State:
     start_point: tuple[float,float] | None = None
     drawing_mode: bool = False
     delete_mode: bool = False
+    cell_info_mode:bool =False
     image_width: int = 0
     image_height: int = 0
     width: float = 0
@@ -30,7 +31,7 @@ class State:
             self.offset_y = (self.height - (self.image_height * self.scale))/2
     
 class DrawingTool(cv.Canvas):
-    def __init__(self, on_cell_drawn: typing.Callable[[list], None] = None, on_cell_deleted: typing.Callable[[tuple], None] = None):
+    def __init__(self, on_cell_drawn: typing.Callable[[list], None] = None, on_cell_deleted: typing.Callable[[tuple], None] = None,on_show_ids: typing.Callable[[tuple], None] = None):
         super().__init__()
         self.draw_color = rgb_to_hex((0,255,0))
         self.left=0
@@ -40,12 +41,14 @@ class DrawingTool(cv.Canvas):
         self.expand = False
         self.on_cell_drawn = on_cell_drawn
         self.on_cell_deleted = on_cell_deleted
+        self.show_ids =on_show_ids
         self._state = State()
         self.content = ft.GestureDetector(
             on_tap_down= self.handle_click,
             on_pan_start=self.handle_pan_start,
             on_pan_update=self.handle_pan_update,
             on_pan_end=self.handle_pan_end,
+            on_hover = self.handle_hover,
             drag_interval=0,
         )
         self.on_resize=self.on_canvas_resize
@@ -77,9 +80,21 @@ class DrawingTool(cv.Canvas):
     def deactivate_delete(self):
         self._state.delete_mode = False
 
+    def show_cell_info(self):
+        self._state.cell_info_mode = True
+
+    def deactivate_cell_info(self):
+        self._state.cell_info_mode = False
+
+
     def handle_click(self, e: ft.TapEvent):
         if self._state.delete_mode:
             self.on_cell_deleted(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
+
+    def handle_hover (self, e:ft.HoverEvent):
+
+        if self._state.cell_info_mode:
+            self.show_ids(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
     def handle_pan_start(self, e: ft.DragStartEvent):
         if self._state.drawing_mode:
