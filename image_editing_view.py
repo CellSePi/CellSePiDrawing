@@ -191,7 +191,7 @@ class ImageEditingView(ft.Card):
                                             on_click=lambda e: self.undo_stack(e),disabled=True)
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}",value=0,
-            opacity=1.0 if self._user_2_5d else 0.0, height=20,
+            opacity=1.0 if self._user_2_5d else 0.0, height=20,width=170,
             active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
             on_change=lambda e: self._slider2_5d_change()
@@ -238,8 +238,8 @@ class ImageEditingView(ft.Card):
                         ),
                     ),
                     self._delete_mask_button,
-                ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,
-            ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
+                ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,height=38,
+            ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12)
             ))
         self.content = ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools],spacing=0)
 
