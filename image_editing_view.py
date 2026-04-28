@@ -162,8 +162,8 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy"#Could set a mask_path for TESTING
-        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path =None#Could set a mask_path for TESTING
+        self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
