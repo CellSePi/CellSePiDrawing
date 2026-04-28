@@ -113,23 +113,29 @@ class FluorescenceCache:
     def clear(self):
         self.fluorescence_cache.clear()
 
-    def get_fluorescence_value(self, cell_id, mask, np_image, channel):
+    def get_fluorescence_value(self, cell_id, mask, np_image, channel, zslice=None):
+        if zslice == -1 :
+            zslice =None
+
         if channel not in self.fluorescence_cache:
             self.fluorescence_cache[channel] = OrderedDict()
+        if zslice not in self.fluorescence_cache[channel]:
+            self.fluorescence_cache[channel][zslice] =OrderedDict()
 
-        if cell_id in self.fluorescence_cache[channel]:
-            self.fluorescence_cache[channel].move_to_end(cell_id)
+        if cell_id in self.fluorescence_cache[channel][zslice]:
+            self.fluorescence_cache[channel][zslice].move_to_end(cell_id)
+            self.fluorescence_cache[channel].move_to_end(zslice)
             self.fluorescence_cache.move_to_end(channel)
-            return self.fluorescence_cache[channel][cell_id]
+            return self.fluorescence_cache[channel][zslice][cell_id]
 
-        if len(self.fluorescence_cache[channel]) > self._max_values:
-            self.fluorescence_cache[channel].popitem(last=False)
+        if len(self.fluorescence_cache[channel][zslice]) > self._max_values:
+            self.fluorescence_cache[channel][zslice].popitem(last=False)
 
         cell_mask = mask == cell_id
         val = float(np.mean(np_image[cell_mask]))
 
-        self.fluorescence_cache[channel][cell_id] = val
-        self.fluorescence_cache[channel].move_to_end(cell_id)
+        self.fluorescence_cache[channel][zslice][cell_id] = val
+        self.fluorescence_cache[channel][zslice].move_to_end(cell_id)
 
         return val
 
@@ -162,8 +168,8 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path =None#Could set a mask_path for TESTING
-        self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path =r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy"#Could set a mask_path for TESTING
+        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -742,7 +748,7 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         #delete saved fluorescence cache, if cell is deleted
-        self._fluorescence_cache.fluorescence_cache[self._channel_id].pop(cell_id)
+        self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id)
@@ -758,6 +764,7 @@ class ImageEditingView(ft.Card):
         outline[cell_outline] = 0
         if self._shifting_check_box.selected:
             mask_shifting(self._mask_data, cell_id, self._slice_id)
+            self._fluorescence_cache.clear()
 
         self.update_mask_image()
         self._trigger_background_save()
@@ -887,9 +894,9 @@ class ImageEditingView(ft.Card):
             return
 
         #load fluorescence value from cache
-        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id,mask,np.array(self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),self._channel_id )
-        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-         #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id)
+        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id,mask,np.array(self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),self._channel_id, self._slice_id)
+        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
+            self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
 
         #show id and value in canvas
         if self._show_id_checkbox.value :
