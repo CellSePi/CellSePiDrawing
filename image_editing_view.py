@@ -324,6 +324,8 @@ class ImageEditingView(ft.Card):
         self._main_image.src = "Placeholder"
         self._main_image.visible = False
         self._main_image.update()
+        self._seg_channel_id = None
+        self._image_id = None
         self._mask_path = None
         self._mask_data = None
         self._mask_image.src = "Placeholder"
