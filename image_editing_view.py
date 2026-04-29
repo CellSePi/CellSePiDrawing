@@ -580,7 +580,7 @@ class ImageEditingView(ft.Card):
         self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE60
         self._mask_button.tooltip="Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
-        self._show_id_checkbox.disabled = not self._mask_image.visible
+        self._show_id_checkbox.disabled = not self._mask_image.visible or (self._image_3d and self._slice_id == -1)
         if self._show_id_checkbox.value and not self._mask_image.visible:
             self._show_id_checkbox.value = not self._show_id_checkbox.value
             self._id_info.visible = False
