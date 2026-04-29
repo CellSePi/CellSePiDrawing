@@ -340,6 +340,7 @@ class ImageEditingView(ft.Card):
         self._delete_button.disabled = True
         self._delete_button.update()
         self.drawing_tool.deactivate_drawing()
+        self.drawing_tool.deactivate_delete()
         self._redo_stack.clear()
         self._undo_stack.clear()
         self._redo_button.disabled = True
@@ -354,6 +355,7 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.disabled = True
         self._show_id_checkbox.value = False
         self._show_id_checkbox.update()
+        self.drawing_tool.deactivate_cell_info()
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
 
@@ -466,6 +468,8 @@ class ImageEditingView(ft.Card):
                     self._delete_button.icon_color = ft.Colors.WHITE60
                     self._delete_button.disabled = False
                     self._delete_button.update()
+                self._show_id_checkbox.disabled = False
+                self._show_id_checkbox.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
                 self._edit_button.disabled = True
@@ -476,6 +480,7 @@ class ImageEditingView(ft.Card):
                 self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
                 self._show_id_checkbox.disabled = True
+                self._show_id_checkbox.value = False
                 self._show_id_checkbox.update()
                 self.drawing_tool.deactivate_cell_info()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
@@ -494,6 +499,8 @@ class ImageEditingView(ft.Card):
                     self._delete_button.icon_color = ft.Colors.WHITE60
                     self._delete_button.disabled = False
                     self._delete_button.update()
+                self._show_id_checkbox.disabled = False
+                self._show_id_checkbox.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
