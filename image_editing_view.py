@@ -168,8 +168,8 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path =r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy"#Could set a mask_path for TESTING
-        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path =None#Could set a mask_path for TESTING
+        self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -748,7 +748,7 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         #delete saved fluorescence cache, if cell is deleted
-        self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id].pop(cell_id)
+        self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id)
@@ -894,9 +894,9 @@ class ImageEditingView(ft.Card):
             return
 
         #load fluorescence value from cache
-        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id,mask,np.array(self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),self._channel_id, self._slice_id)
-        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-            self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
+        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id,mask,np.array(self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),self._channel_id, self._slice_id)
+        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
+         #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
 
         #show id and value in canvas
         if self._show_id_checkbox.value :
