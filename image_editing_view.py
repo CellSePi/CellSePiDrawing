@@ -298,14 +298,14 @@ class ImageEditingView(ft.Card):
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ft.Container(
+                                                                  ], expand=True), expand=True)
+
+        self.content = ft.Stack([ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools],spacing=0),
+                                                                    ft.Container(
                                                                       content=self._id_info,
                                                                       right=15,
                                                                       top=15,
-                                                                  )
-                                                                  ], expand=True), expand=True)
-
-        self.content = ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools],spacing=0)
+                                                                  )])
 
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
