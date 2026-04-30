@@ -678,11 +678,17 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.update()
 
     def _cell_drawn(self, lines_data: list | np.ndarray):
-        self.page.run_task(self._async_cell_drawn,lines_data)
-
-    async def _async_cell_drawn(self, lines_data: list | np.ndarray):
         if lines_data is None or len(lines_data) == 0:
             return
+
+        if isinstance(lines_data, np.ndarray):
+            data_to_pass = lines_data.copy()
+        else:
+            data_to_pass = copy.deepcopy(lines_data)
+
+        self.page.run_task(self._async_cell_drawn, data_to_pass)
+
+    async def _async_cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
