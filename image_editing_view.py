@@ -929,7 +929,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.update()
 
     def show_ids_and_value(self,pos: tuple):
-        if self._mask_path is None:
+        if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
             return
 
         mask = self._mask_data["masks"]
