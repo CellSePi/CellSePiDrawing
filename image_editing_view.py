@@ -678,6 +678,9 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.update()
 
     def _cell_drawn(self, lines_data: list | np.ndarray):
+        self.page.run_task(self._async_cell_drawn,lines_data)
+
+    async def _async_cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
@@ -782,7 +785,11 @@ class ImageEditingView(ft.Card):
         self._trigger_background_save()
         self.on_mask_change(self._image_id,is_new_mask)
 
-    def _delete_cell(self, pos: tuple | int):
+
+    def delete_cell(self, pos: tuple | int):
+        self.page.run_task(self._async_delete_cell,pos)
+
+    async def _async_delete_cell(self, pos: tuple | int):
 
         #delete the cell in the mask data
         if self._mask_path is None:
