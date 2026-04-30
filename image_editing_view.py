@@ -164,7 +164,7 @@ class ImageCache:
         self.cache.clear()
 
 class ImageEditingView(ft.Card):
-    def __init__(self,on_mask_change: typing.Callable[[str], None] = None):
+    def __init__(self,on_mask_change: typing.Callable[[str,bool], None] = None):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
@@ -677,9 +677,11 @@ class ImageEditingView(ft.Card):
     def _cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
+        new_mask = False
         if self._mask_path is None: #currently no mask is given
             if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]:
                 return
+            new_mask = True
             image_path = self._main_paths[self._image_id][self._seg_channel_id]
             directory, filename = os.path.split(image_path)
             name, _ = os.path.splitext(filename)
@@ -775,7 +777,7 @@ class ImageEditingView(ft.Card):
             self._mask_button.update()
 
         self._trigger_background_save()
-        self.on_mask_change(self._image_id)
+        self.on_mask_change(self._image_id,new_mask)
 
     def _delete_cell(self, pos: tuple | int):
 
@@ -825,7 +827,7 @@ class ImageEditingView(ft.Card):
 
         self.update_mask_image()
         self._trigger_background_save()
-        self.on_mask_change(self._image_id)
+        self.on_mask_change(self._image_id,False)
 
     def _trigger_background_save(self):
         if self._save_task and not self._save_task.done():
@@ -869,7 +871,7 @@ class ImageEditingView(ft.Card):
                 self._id_info.update()
                 self._show_id_checkbox.update()
                 self.update_mask_image()
-                self.on_mask_change(self._image_id)
+                self.on_mask_change(self._image_id,True)
 
         cupertino_alert_dialog = ft.CupertinoAlertDialog(
             title=ft.Text("Delete Entire Mask"),
