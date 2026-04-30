@@ -643,6 +643,7 @@ class ImageEditingView(ft.Card):
         else:
             self.drawing_tool.deactivate_cell_info()
             self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+        self._show_id_checkbox.update()
 
     def _cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
