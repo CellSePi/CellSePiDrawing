@@ -602,12 +602,13 @@ class ImageEditingView(ft.Card):
             self._mask_button.icon_color = ft.Colors.BLACK12
             self._mask_button.disabled = True
             self._mask_button.update()
-            self._show_id_checkbox.disabled = False
-            if self._show_id_checkbox.selected:
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE
-            else:
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+            self._show_id_checkbox.disabled = True
+            self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+            self._show_id_checkbox.selected = False
             self._show_id_checkbox.update()
+            self.drawing_tool.deactivate_cell_info()
+            self._id_info.visible = False
+            self._id_info.update()
 
     def _update_mask_image(self):
         if self._mask_data is None:
@@ -618,7 +619,10 @@ class ImageEditingView(ft.Card):
             self._mask_button.disabled = False
             self._mask_button.update()
             self._show_id_checkbox.disabled = False
-            self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+            if self._show_id_checkbox.selected:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE
+            else:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
