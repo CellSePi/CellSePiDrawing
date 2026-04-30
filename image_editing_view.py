@@ -301,7 +301,7 @@ class ImageEditingView(ft.Card):
                     self._delete_mask_button,
                     self._show_id_checkbox,
                 ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,height=38,
-            ), bgcolor=ft.Colors.BLUE_400, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
+            ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
 
                 ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
