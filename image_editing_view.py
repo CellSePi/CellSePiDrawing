@@ -587,13 +587,13 @@ class ImageEditingView(ft.Card):
 
     def update_mask_image(self):
         if self._mask_path is not None:
-            self._update_mask_image()
+            self.page.run_task(self._async_update_mask_image)
         elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
             self._mask_path = self._mask_paths[self._image_id][self._seg_channel_id]
             self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
             self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
             self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
-            self._update_mask_image()
+            self.page.run_task(self._async_update_mask_image)
         else:
             self._mask_image.src = "Placeholder"
             self._mask_image.visible = False
@@ -610,7 +610,7 @@ class ImageEditingView(ft.Card):
             self._id_info.visible = False
             self._id_info.update()
 
-    def _update_mask_image(self):
+    async def _async_update_mask_image(self):
         if self._mask_data is None:
             return
         if not self._mask_image.visible:
@@ -626,8 +626,7 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
-        self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
-                                                     self.mask_opacity, slice_id=self._slice_id)
+        self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color, self.outline_color, self.mask_opacity, self._slice_id)
         self._mask_image.update()
 
     def _show_mask(self):
