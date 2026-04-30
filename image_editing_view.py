@@ -681,6 +681,8 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self._async_cell_drawn,lines_data)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
+        if lines_data is None or len(lines_data) == 0:
+            return
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
