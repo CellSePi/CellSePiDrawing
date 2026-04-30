@@ -481,7 +481,10 @@ class ImageEditingView(ft.Card):
                     self._delete_button.disabled = False
                     self._delete_button.update()
                 self._show_id_checkbox.disabled = False
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+                if self._show_id_checkbox.selected:
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE
+                else:
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                 self._show_id_checkbox.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
@@ -514,7 +517,10 @@ class ImageEditingView(ft.Card):
                     self._delete_button.disabled = False
                     self._delete_button.update()
                 self._show_id_checkbox.disabled = False
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+                if self._show_id_checkbox.selected:
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE
+                else:
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                 self._show_id_checkbox.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
@@ -597,7 +603,14 @@ class ImageEditingView(ft.Card):
         self._mask_button.tooltip="Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
         self._show_id_checkbox.disabled = not self._mask_image.visible or (self._image_3d and self._slice_id == -1)
-        self._show_id_checkbox.icon_color = ft.Colors.BLACK_12 if self._show_id_checkbox.disabled else ft.Colors.WHITE_60
+        if self._show_id_checkbox.disabled:
+            self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+        else:
+            if self._show_id_checkbox.selected:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE
+            else:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+
         if self._show_id_checkbox.selected and not self._mask_image.visible:
             self._show_id_checkbox.selected = not self._show_id_checkbox.selected
             self._id_info.visible = False
