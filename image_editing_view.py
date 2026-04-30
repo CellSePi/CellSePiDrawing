@@ -227,7 +227,16 @@ class ImageEditingView(ft.Card):
                                             on_click=lambda e: self.undo_stack(e),disabled=True)
 
         #controls for visible cell id and value, when hovered over the cell mask
-        self._show_id_checkbox = ft.Checkbox(label = "Cell Info", disabled=True,on_change=self._toggle_cell_info)
+        self._show_id_checkbox = ft.IconButton(
+            icon=ft.Icon(ft.CupertinoIcons.NUMBER_CIRCLE_FILL, color=ft.Colors.BLACK_12),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=12), ),
+            hover_color=ft.Colors.WHITE12,
+            selected_icon=ft.Icon(ft.CupertinoIcons.NUMBER_CIRCLE_FILL, color=ft.Colors.WHITE),
+            selected=False,
+            disabled=True,
+            on_click=self._toggle_cell_info,
+        )
         self._id_info = ft.Container(
             content=ft.Text(
                 "",
@@ -355,7 +364,8 @@ class ImageEditingView(ft.Card):
         self._undo_button.update()
         self._image_cache.clear()
         self._show_id_checkbox.disabled = True
-        self._show_id_checkbox.value = False
+        self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+        self._show_id_checkbox.selected = False
         self._show_id_checkbox.update()
         self.drawing_tool.deactivate_cell_info()
         self._fluorescence_cache.clear()
@@ -471,6 +481,7 @@ class ImageEditingView(ft.Card):
                     self._delete_button.disabled = False
                     self._delete_button.update()
                 self._show_id_checkbox.disabled = False
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                 self._show_id_checkbox.update()
             else:
                 self._edit_button.icon_color = ft.Colors.BLACK12
@@ -482,7 +493,8 @@ class ImageEditingView(ft.Card):
                 self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
                 self._show_id_checkbox.disabled = True
-                self._show_id_checkbox.value = False
+                self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                self._show_id_checkbox.selected = False
                 self._show_id_checkbox.update()
                 self.drawing_tool.deactivate_cell_info()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
@@ -502,6 +514,7 @@ class ImageEditingView(ft.Card):
                     self._delete_button.disabled = False
                     self._delete_button.update()
                 self._show_id_checkbox.disabled = False
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                 self._show_id_checkbox.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
@@ -560,6 +573,7 @@ class ImageEditingView(ft.Card):
             self._mask_button.disabled = True
             self._mask_button.update()
             self._show_id_checkbox.disabled = True
+            self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
             self._show_id_checkbox.update()
 
     def _update_mask_image(self):
@@ -583,8 +597,9 @@ class ImageEditingView(ft.Card):
         self._mask_button.tooltip="Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
         self._show_id_checkbox.disabled = not self._mask_image.visible or (self._image_3d and self._slice_id == -1)
-        if self._show_id_checkbox.value and not self._mask_image.visible:
-            self._show_id_checkbox.value = not self._show_id_checkbox.value
+        self._show_id_checkbox.icon_color = ft.Colors.BLACK_12 if self._show_id_checkbox.disabled else ft.Colors.WHITE_60
+        if self._show_id_checkbox.selected and not self._mask_image.visible:
+            self._show_id_checkbox.selected = not self._show_id_checkbox.selected
             self._id_info.visible = False
             self.page.update()
         self._show_id_checkbox.update()
@@ -621,7 +636,7 @@ class ImageEditingView(ft.Card):
         e.control.update()
 
     def _toggle_cell_info(self):
-        if not self._mask_button.disabled and self._show_id_checkbox.value:
+        if not self._mask_button.disabled and self._show_id_checkbox.selected:
             self.drawing_tool.show_cell_info()
         else:
             self.drawing_tool.deactivate_cell_info()
@@ -814,6 +829,7 @@ class ImageEditingView(ft.Card):
                 self._redo_button.update()
                 self._undo_button.update()
                 self._show_id_checkbox.disabled = True
+                self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                 self._show_id_checkbox.update()
                 self.update_mask_image()
                 self.on_mask_change(self._image_id)
@@ -908,7 +924,7 @@ class ImageEditingView(ft.Card):
          #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
 
         #show id and value in canvas
-        if self._show_id_checkbox.value :
+        if self._show_id_checkbox.selected :
             self._id_info.content.value = (
                 f"Cell ID: {cell_id}\n"
                 f"Value: {cell_value:.2f}"
