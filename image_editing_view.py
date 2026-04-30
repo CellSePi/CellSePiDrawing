@@ -677,11 +677,11 @@ class ImageEditingView(ft.Card):
     def _cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
-        new_mask = False
+        is_new_mask = False
         if self._mask_path is None: #currently no mask is given
             if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]:
                 return
-            new_mask = True
+            is_new_mask = True
             image_path = self._main_paths[self._image_id][self._seg_channel_id]
             directory, filename = os.path.split(image_path)
             name, _ = os.path.splitext(filename)
@@ -777,7 +777,7 @@ class ImageEditingView(ft.Card):
             self._mask_button.update()
 
         self._trigger_background_save()
-        self.on_mask_change(self._image_id,new_mask)
+        self.on_mask_change(self._image_id,is_new_mask)
 
     def _delete_cell(self, pos: tuple | int):
 
