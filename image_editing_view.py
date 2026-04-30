@@ -737,7 +737,7 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
 
-        free_id = search_free_id(mask, outline)  # search for the next free id in mask and outline
+        free_id = await asyncio.to_thread(search_free_id, mask, outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
@@ -756,13 +756,13 @@ class ImageEditingView(ft.Card):
             new_cell_outline = lines_data
 
         # Traces the outline of the new cell and fills the mask based on the outline
-        contour = trace_contour(new_cell_outline)
-        new_mask = fill_polygon_from_outline(contour, mask.shape)  # gets the inner pixels of the new cell
+        contour = await asyncio.to_thread(trace_contour, new_cell_outline)
+        new_mask = await asyncio.to_thread(fill_polygon_from_outline, contour, mask.shape)  # gets the inner pixels of the new cell
         mask[(new_mask == 1) & (mask == 0) & (
                     outline == 0)] = free_id  # adds them to the npy if they not overlap with the already existing cells
 
         # search if inline pixels (mask) have no outline, if the pixel have no outline neighbor make them to outline and delete them from mask
-        new_border_pixels = find_border_pixels(mask, outline, free_id)
+        new_border_pixels = await asyncio.to_thread(find_border_pixels, mask, outline, free_id)
         for y, x in new_border_pixels:
             if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
                 mask[y, x] = 0
@@ -840,7 +840,7 @@ class ImageEditingView(ft.Card):
         mask[cell_mask] = 0
         outline[cell_outline] = 0
         if self._shifting_check_box.selected:
-            mask_shifting(self._mask_data, cell_id, self._slice_id)
+            await asyncio.to_thread(mask_shifting, self._mask_data, cell_id, self._slice_id)
             self._fluorescence_cache.clear()
 
         self.update_mask_image()
