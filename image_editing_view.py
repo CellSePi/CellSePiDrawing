@@ -538,6 +538,14 @@ class ImageEditingView(ft.Card):
                     else:
                         self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                     self._show_id_checkbox.update()
+                else:
+                    self._show_id_checkbox.disabled = True
+                    self._show_id_checkbox.selected = False
+                    self.drawing_tool.deactivate_cell_info()
+                    self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                    self._show_id_checkbox.update()
+                    self._id_info.visible = False
+                    self._id_info.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
