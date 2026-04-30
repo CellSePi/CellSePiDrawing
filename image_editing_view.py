@@ -187,7 +187,7 @@ class ImageEditingView(ft.Card):
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
         self._user_2_5d = False
-        self.on_mask_change = on_mask_change or (lambda x: None)
+        self.on_mask_change = on_mask_change or (lambda x,y: None)
         self.mask_suffix = "_seg"
         self.expand=True
         self._redo_stack = []
