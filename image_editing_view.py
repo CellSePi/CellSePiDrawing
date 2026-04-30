@@ -228,11 +228,12 @@ class ImageEditingView(ft.Card):
 
         #controls for visible cell id and value, when hovered over the cell mask
         self._show_id_checkbox = ft.IconButton(
-            icon=ft.Icon(ft.CupertinoIcons.NUMBER_CIRCLE_FILL, color=ft.Colors.BLACK_12),
+            icon=ft.CupertinoIcons.NUMBER_CIRCLE_FILL,
+            icon_color=ft.Colors.BLACK_12,
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12), ),
             hover_color=ft.Colors.WHITE12,
-            selected_icon=ft.Icon(ft.CupertinoIcons.NUMBER_CIRCLE_FILL, color=ft.Colors.WHITE),
+            selected_icon_color=ft.Colors.WHITE,
             selected=False,
             disabled=True,
             on_click=self._toggle_cell_info,
