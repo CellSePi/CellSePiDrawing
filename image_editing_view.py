@@ -615,9 +615,13 @@ class ImageEditingView(ft.Card):
             self._mask_button.tooltip = "Show mask"
             self._mask_button.disabled = False
             self._mask_button.update()
-            self._show_id_checkbox.disabled = False
-            self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+            self._show_id_checkbox.disabled = True
+            self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+            self._show_id_checkbox.selected = False
             self._show_id_checkbox.update()
+            self.drawing_tool.deactivate_cell_info()
+            self._id_info.visible = False
+            self._id_info.update()
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
         self._mask_image.src = convert_npy_to_canvas(mask, outline, self.mask_color, self.outline_color,
