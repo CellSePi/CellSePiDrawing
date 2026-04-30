@@ -236,7 +236,7 @@ class ImageEditingView(ft.Card):
             selected_icon_color=ft.Colors.WHITE,
             selected=False,
             disabled=True,
-            on_click=lambda e: self._toggle_cell_info,
+            on_click=lambda e: self._toggle_cell_info(),
         )
         self._id_info = ft.Container(
             content=ft.Text(
@@ -637,6 +637,7 @@ class ImageEditingView(ft.Card):
         e.control.update()
 
     def _toggle_cell_info(self):
+        self._show_id_checkbox.selected = not self._show_id_checkbox.selected
         if not self._mask_button.disabled and self._show_id_checkbox.selected:
             self.drawing_tool.show_cell_info()
         else:
