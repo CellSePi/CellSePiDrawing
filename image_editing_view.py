@@ -233,7 +233,6 @@ class ImageEditingView(ft.Card):
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12), ),
             hover_color=ft.Colors.WHITE12,
-            selected_icon_color=ft.Colors.WHITE,
             selected=False,
             disabled=True,
             on_click=lambda e: self._toggle_cell_info(),
@@ -640,8 +639,10 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.selected = not self._show_id_checkbox.selected
         if not self._mask_button.disabled and self._show_id_checkbox.selected:
             self.drawing_tool.show_cell_info()
+            self._show_id_checkbox.icon_color = ft.Colors.WHITE
         else:
             self.drawing_tool.deactivate_cell_info()
+            self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
 
     def _cell_drawn(self, lines_data: list | np.ndarray):
         #update the mask data
