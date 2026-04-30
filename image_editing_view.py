@@ -40,11 +40,11 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
             img = enhancer.enhance(contrast)
 
         buffer = BytesIO()
-        img.save(buffer, format="PNG")
+        img.save(buffer, format="PNG",compress_level=0)
         buffer.seek(0)
         return base64.b64encode(buffer.getvalue()).decode('utf-8'),shape,check
 
-    _, buffer = cv2.imencode('.png', image)
+    _, buffer = cv2.imencode('.png', image,[cv2.IMWRITE_PNG_COMPRESSION, 0])
 
     return base64.b64encode(buffer).decode('utf-8'), shape, check
 
@@ -87,7 +87,7 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
 
     #saves the image as a image(base64)
     buffer= BytesIO()
-    im.save(buffer, format="PNG", compress_level=1)
+    im.save(buffer, format="PNG", compress_level=0)
 
     buffer.seek(0)
     image_base_64= base64.b64encode(buffer.getvalue()).decode('utf-8')
