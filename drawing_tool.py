@@ -92,7 +92,7 @@ class DrawingTool(cv.Canvas):
             self.on_cell_deleted(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
     async def handle_hover (self, e:ft.HoverEvent):
-        if self._state.cell_info_mode:
+        if self._state.cell_info_mode and self._state.start_point is None:
             self.show_ids(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
     def handle_pan_start(self, e: ft.DragStartEvent):
