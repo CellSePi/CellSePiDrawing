@@ -786,7 +786,7 @@ class ImageEditingView(ft.Card):
         self.on_mask_change(self._image_id,is_new_mask)
 
 
-    def delete_cell(self, pos: tuple | int):
+    def _delete_cell(self, pos: tuple | int):
         self.page.run_task(self._async_delete_cell,pos)
 
     async def _async_delete_cell(self, pos: tuple | int):
