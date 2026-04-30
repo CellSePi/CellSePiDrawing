@@ -556,9 +556,13 @@ class ImageEditingView(ft.Card):
                         self._mask_button.tooltip = "Show mask"
                         self._mask_button.disabled = False
                         self._mask_button.update()
-                        self._show_id_checkbox.disabled = False
-                        self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+                        self._show_id_checkbox.disabled = True
+                        self._show_id_checkbox.selected = False
+                        self.drawing_tool.deactivate_cell_info()
+                        self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                         self._show_id_checkbox.update()
+                        self._id_info.visible = False
+                        self._id_info.update()
                     return
 
         self._mask_path = None
