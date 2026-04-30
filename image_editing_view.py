@@ -236,7 +236,7 @@ class ImageEditingView(ft.Card):
             selected_icon_color=ft.Colors.WHITE,
             selected=False,
             disabled=True,
-            on_click=self._toggle_cell_info,
+            on_click=lambda e: self._toggle_cell_info,
         )
         self._id_info = ft.Container(
             content=ft.Text(
