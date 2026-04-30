@@ -580,6 +580,7 @@ class ImageEditingView(ft.Card):
             self._mask_button.update()
             self._show_id_checkbox.disabled = True
             self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+            self._show_id_checkbox.selected = False
             self._show_id_checkbox.update()
 
     def _update_mask_image(self):
@@ -605,6 +606,7 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.disabled = not self._mask_image.visible or (self._image_3d and self._slice_id == -1)
         if self._show_id_checkbox.disabled:
             self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+            self._show_id_checkbox.selected = False
         else:
             if self._show_id_checkbox.selected:
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE
@@ -847,6 +849,7 @@ class ImageEditingView(ft.Card):
                 self._undo_button.update()
                 self._show_id_checkbox.disabled = True
                 self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                self._show_id_checkbox.selected = False
                 self._show_id_checkbox.update()
                 self.update_mask_image()
                 self.on_mask_change(self._image_id)
