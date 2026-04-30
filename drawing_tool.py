@@ -91,8 +91,7 @@ class DrawingTool(cv.Canvas):
         if self._state.delete_mode:
             self.on_cell_deleted(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
-    def handle_hover (self, e:ft.HoverEvent):
-
+    async def handle_hover (self, e:ft.HoverEvent):
         if self._state.cell_info_mode:
             self.show_ids(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
