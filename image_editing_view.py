@@ -505,14 +505,15 @@ class ImageEditingView(ft.Card):
                 self._delete_button.disabled = True
                 self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
-                self._show_id_checkbox.disabled = True
-                self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
-                self._show_id_checkbox.selected = False
-                self.drawing_tool.deactivate_cell_info()
-                self._id_info.visible = False
-                self._id_info.update()
-                self._show_id_checkbox.update()
-                self.drawing_tool.deactivate_cell_info()
+                if self._slider_2_5d.opacity != 1.0:
+                    self._show_id_checkbox.disabled = True
+                    self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                    self._show_id_checkbox.selected = False
+                    self.drawing_tool.deactivate_cell_info()
+                    self._id_info.visible = False
+                    self._id_info.update()
+                    self._show_id_checkbox.update()
+                    self.drawing_tool.deactivate_cell_info()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[2] - 1
             self._slider_2_5d.divisions = shape[2] - 2
@@ -529,21 +530,21 @@ class ImageEditingView(ft.Card):
                     self._delete_button.icon_color = ft.Colors.WHITE60
                     self._delete_button.disabled = False
                     self._delete_button.update()
-                if not self._mask_button.disabled:
-                    self._show_id_checkbox.disabled = False
-                    if self._show_id_checkbox.selected:
-                        self._show_id_checkbox.icon_color = ft.Colors.WHITE
-                    else:
-                        self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
-                    self._show_id_checkbox.update()
+            if not self._mask_button.disabled:
+                self._show_id_checkbox.disabled = False
+                if self._show_id_checkbox.selected:
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE
                 else:
-                    self._show_id_checkbox.disabled = True
-                    self._show_id_checkbox.selected = False
-                    self.drawing_tool.deactivate_cell_info()
-                    self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
-                    self._show_id_checkbox.update()
-                    self._id_info.visible = False
-                    self._id_info.update()
+                    self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+                self._show_id_checkbox.update()
+            else:
+                self._show_id_checkbox.disabled = True
+                self._show_id_checkbox.selected = False
+                self.drawing_tool.deactivate_cell_info()
+                self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                self._show_id_checkbox.update()
+                self._id_info.visible = False
+                self._id_info.update()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
@@ -992,3 +993,24 @@ class ImageEditingView(ft.Card):
             )
             self._id_info.visible = True
             self.page.update()
+
+    def disable_editing(self):
+        self._edit_allowed = False
+        self._edit_button.icon_color = ft.Colors.BLACK12
+        self._edit_button.disabled = True
+        self._edit_button.update()
+        self.drawing_tool.deactivate_drawing()
+        self._delete_button.icon_color = ft.Colors.BLACK_12
+        self._delete_button.disabled = True
+        self._delete_button.update()
+        self.drawing_tool.deactivate_delete()
+        self._redo_button.disabled = True
+        self._undo_button.disabled = True
+        self._redo_button.icon_color = ft.Colors.BLACK_12
+        self._undo_button.icon_color = ft.Colors.BLACK_12
+        self._redo_button.update()
+        self._undo_button.update()
+        self._delete_mask_button.icon_color = ft.Colors.BLACK_12
+        self._delete_mask_button.disabled = True
+        self._delete_mask_button.update()
+
