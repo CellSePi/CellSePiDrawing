@@ -328,27 +328,22 @@ class ImageEditingView(ft.Card):
         self.mask_opacity = opacity
         self.update_mask_image()
 
-    def reset_image(self):
+    def reset_image(self,without_update=False):
         self._main_image.src = "Placeholder"
         self._main_image.visible = False
-        self._main_image.update()
         self._seg_channel_id = None
         self._image_id = None
         self._mask_path = None
         self._mask_data = None
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
-        self._mask_image.update()
         self._mask_button.tooltip = "Show mask"
         self._mask_button.icon_color = ft.Colors.BLACK12
         self._mask_button.disabled = True
-        self._mask_button.update()
         self._edit_button.icon_color = ft.Colors.BLACK12
         self._edit_button.disabled = True
-        self._edit_button.update()
         self._delete_button.icon_color = ft.Colors.BLACK_12
         self._delete_button.disabled = True
-        self._delete_button.update()
         self.drawing_tool.deactivate_drawing()
         self.drawing_tool.deactivate_delete()
         self._redo_stack.clear()
@@ -359,19 +354,25 @@ class ImageEditingView(ft.Card):
         self._redo_button.disabled = True
         self._undo_button.icon_color = ft.Colors.BLACK_12
         self._undo_button.disabled = True
-        self._redo_button.update()
-        self._undo_button.update()
         self._image_cache.clear()
         self._show_id_checkbox.disabled = True
         self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
         self._show_id_checkbox.selected = False
-        self._show_id_checkbox.update()
         self.drawing_tool.deactivate_cell_info()
         self._id_info.visible = False
-        self._id_info.update()
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
         self._edit_allowed = True
+        if not without_update:
+            self._main_image.update()
+            self._mask_image.update()
+            self._mask_button.update()
+            self._edit_button.update()
+            self._delete_button.update()
+            self._redo_button.update()
+            self._undo_button.update()
+            self._show_id_checkbox.update()
+            self._id_info.update()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
