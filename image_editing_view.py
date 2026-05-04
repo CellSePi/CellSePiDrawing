@@ -750,16 +750,18 @@ class ImageEditingView(ft.Card):
             contours, _ = cv2.findContours(lines_data, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cv2.fillPoly(temp_mask_cell, contours, 1)
 
-        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
-        eroded = cv2.erode(temp_mask_cell, kernel)
-
-        temp_outline = (temp_mask_cell - eroded) > 0
-        temp_filled = (eroded > 0)
-
         conflict_mask = (mask == 0) & (outline == 0)
+        mask[temp_mask_cell == 1 & conflict_mask] = free_id
 
-        mask[temp_filled & conflict_mask] = free_id
-        outline[temp_outline & conflict_mask] = free_id
+        current_cell_full = (mask == free_id).astype(np.uint8)
+
+        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
+        inner_pixels = cv2.erode(current_cell_full, kernel)
+
+        new_outline_mask = (current_cell_full == 1) & (inner_pixels == 0)
+
+        mask[new_outline_mask] = 0
+        outline[new_outline_mask] = free_id
 
         mask_3d = None
         outline_3d = None
