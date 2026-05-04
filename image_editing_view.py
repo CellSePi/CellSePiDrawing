@@ -363,6 +363,8 @@ class ImageEditingView(ft.Card):
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
         self._edit_allowed = True
+        self._delete_mask_button.icon_color = ft.Colors.WHITE_60
+        self._delete_mask_button.disabled = False
         if not without_update:
             self._main_image.update()
             self._mask_image.update()
@@ -373,6 +375,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.update()
             self._show_id_checkbox.update()
             self._id_info.update()
+            self._delete_mask_button.update()
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
