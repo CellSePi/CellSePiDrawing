@@ -747,8 +747,10 @@ class ImageEditingView(ft.Card):
             cv2.fillPoly(temp_mask_cell, [pts], 1)
 
         else:
-            contours, _ = cv2.findContours(lines_data, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.fillPoly(temp_mask_cell, contours, 1)
+            pts = lines_data.astype(np.int32)
+            if pts.ndim == 2:
+                pts = pts.reshape((-1, 1, 2))
+            cv2.fillPoly(temp_mask_cell, [pts], 1)
 
         valid_area = (temp_mask_cell == 1) & (mask == 0) & (outline == 0)
         mask[valid_area] = free_id
