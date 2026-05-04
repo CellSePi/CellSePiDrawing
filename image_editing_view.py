@@ -692,6 +692,7 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self._async_cell_drawn, data_to_pass)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
+        start = time.perf_counter()
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
@@ -733,16 +734,16 @@ class ImageEditingView(ft.Card):
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
-
+        checkpoint1 = time.perf_counter()
         free_id = await asyncio.to_thread(search_free_id, mask, outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
+        checkpoint2 = time.perf_counter()
 
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
-        new_cell_outline = np.zeros_like(outline, dtype=np.uint16)
         if type(lines_data) is list:
             pts = []
             for line in lines_data:
@@ -759,9 +760,12 @@ class ImageEditingView(ft.Card):
             temp_filled = np.zeros_like(mask, dtype=np.uint8)
             cv2.fillPoly(temp_filled, contours, 1)
 
+        checkpoint3 = time.perf_counter()
+
         mask[(temp_filled == 1) & (mask == 0) & (outline == 0)] = free_id
         outline[(temp_outline == 1) & (mask == 0) & (outline == 0)] = free_id
 
+        checkpoint4 = time.perf_counter()
         # search if inline pixels (mask) have no outline, if the pixel have no outline neighbor make them to outline and delete them from mask
         new_border_pixels = await asyncio.to_thread(find_border_pixels, mask, outline, free_id)
         for y, x in new_border_pixels:
@@ -769,6 +773,7 @@ class ImageEditingView(ft.Card):
                 mask[y, x] = 0
                 outline[y, x] = free_id
 
+        checkpoint5 = time.perf_counter()
         mask_3d = None
         outline_3d = None
         if self._slice_id >= 0:
@@ -798,8 +803,15 @@ class ImageEditingView(ft.Card):
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
 
+        checkpoint6 = time.perf_counter()
         self._trigger_background_save()
         self.on_mask_change(self._image_id,is_new_mask)
+        print(f"C1: {checkpoint1 - start:.4f}s")
+        print(f"C2: {checkpoint2 - start:.4f}s")
+        print(f"C3: {checkpoint3 - start:.4f}s")
+        print(f"C4: {checkpoint4 - start:.4f}s")
+        print(f"C5: {checkpoint5 - start:.4f}s")
+        print(f"C6: {checkpoint6 - start:.4f}s")
 
 
     def _delete_cell(self, pos: tuple | int):
