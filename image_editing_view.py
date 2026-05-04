@@ -3,7 +3,6 @@ import base64
 import copy
 import os
 import typing
-import time
 from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
@@ -692,7 +691,6 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self._async_cell_drawn, data_to_pass)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
-        start = time.perf_counter()
         #update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
@@ -734,33 +732,24 @@ class ImageEditingView(ft.Card):
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
-        checkpoint1 = time.perf_counter()
+
         free_id = await asyncio.to_thread(search_free_id, mask, outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
-        checkpoint2 = time.perf_counter()
 
+        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         if type(lines_data) is list:
-            pts = []
-            for line in lines_data:
-                pts.append([line[0][0], line[0][1]])
-            pts = np.array(pts, dtype=np.int32)
-            temp_filled = np.zeros_like(mask, dtype=np.uint8)
-            cv2.fillPoly(temp_filled, [pts], 1)
-            temp_outline = np.zeros_like(mask, dtype=np.uint8)
-            cv2.polylines(temp_outline, [pts], isClosed=True, color=1, thickness=1)
+            pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
+            cv2.fillPoly(temp_mask_cell, [pts], 1)
 
         else:
-            temp_outline = lines_data
-            contours, _ = cv2.findContours(temp_outline, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            temp_filled = np.zeros_like(mask, dtype=np.uint8)
-            cv2.fillPoly(temp_filled, contours, 1)
+            contours, _ = cv2.findContours(lines_data, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.fillPoly(temp_mask_cell, contours, 1)
 
-        checkpoint3 = time.perf_counter()
         kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
         eroded = cv2.erode(temp_mask_cell, kernel)
 
@@ -772,7 +761,6 @@ class ImageEditingView(ft.Card):
         mask[temp_filled & conflict_mask] = free_id
         outline[temp_outline & conflict_mask] = free_id
 
-        checkpoint5 = time.perf_counter()
         mask_3d = None
         outline_3d = None
         if self._slice_id >= 0:
@@ -802,15 +790,8 @@ class ImageEditingView(ft.Card):
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
 
-        checkpoint6 = time.perf_counter()
         self._trigger_background_save()
         self.on_mask_change(self._image_id,is_new_mask)
-        print(f"C1: {checkpoint1 - start:.4f}s")
-        print(f"C2: {checkpoint2 - checkpoint1:.4f}s")
-        print(f"C3: {checkpoint3 - checkpoint2:.4f}s")
-        print(f"C4: {checkpoint4 - checkpoint3:.4f}s")
-        print(f"C5: {checkpoint5 - checkpoint4:.4f}s")
-        print(f"C6: {checkpoint6 - checkpoint5:.4f}s")
 
 
     def _delete_cell(self, pos: tuple | int):
