@@ -748,15 +748,15 @@ class ImageEditingView(ft.Card):
             for line in lines_data:
                 pts.append([line[0][0], line[0][1]])
             pts = np.array(pts, dtype=np.int32)
-            temp_filled = np.zeros_like(mask_slice, dtype=np.uint8)
+            temp_filled = np.zeros_like(mask, dtype=np.uint8)
             cv2.fillPoly(temp_filled, [pts], 1)
-            temp_outline = np.zeros_like(mask_slice, dtype=np.uint8)
+            temp_outline = np.zeros_like(mask, dtype=np.uint8)
             cv2.polylines(temp_outline, [pts], isClosed=True, color=1, thickness=1)
 
         else:
             temp_outline = lines_data
             contours, _ = cv2.findContours(temp_outline, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            temp_filled = np.zeros_like(mask_slice, dtype=np.uint8)
+            temp_filled = np.zeros_like(mask, dtype=np.uint8)
             cv2.fillPoly(temp_filled, contours, 1)
 
         mask[(temp_filled == 1) & (mask == 0) & (outline == 0)] = free_id
