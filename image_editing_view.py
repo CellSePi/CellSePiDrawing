@@ -3,6 +3,7 @@ import base64
 import copy
 import os
 import typing
+import time
 from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
@@ -14,8 +15,7 @@ import tifffile
 from PIL import Image, ImageEnhance
 
 from drawing_tool import DrawingTool
-from drawing_util import bresenham_line, search_free_id, trace_contour, fill_polygon_from_outline, find_border_pixels, \
-    mask_shifting, rgb_to_hex
+from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 
 
 def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0):
@@ -761,17 +761,16 @@ class ImageEditingView(ft.Card):
             cv2.fillPoly(temp_filled, contours, 1)
 
         checkpoint3 = time.perf_counter()
+        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
+        eroded = cv2.erode(temp_mask_cell, kernel)
 
-        mask[(temp_filled == 1) & (mask == 0) & (outline == 0)] = free_id
-        outline[(temp_outline == 1) & (mask == 0) & (outline == 0)] = free_id
+        temp_outline = (temp_mask_cell - eroded) > 0
+        temp_filled = (eroded > 0)
 
-        checkpoint4 = time.perf_counter()
-        # search if inline pixels (mask) have no outline, if the pixel have no outline neighbor make them to outline and delete them from mask
-        new_border_pixels = await asyncio.to_thread(find_border_pixels, mask, outline, free_id)
-        for y, x in new_border_pixels:
-            if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
-                mask[y, x] = 0
-                outline[y, x] = free_id
+        conflict_mask = (mask == 0) & (outline == 0)
+
+        mask[temp_filled & conflict_mask] = free_id
+        outline[temp_outline & conflict_mask] = free_id
 
         checkpoint5 = time.perf_counter()
         mask_3d = None
@@ -807,11 +806,11 @@ class ImageEditingView(ft.Card):
         self._trigger_background_save()
         self.on_mask_change(self._image_id,is_new_mask)
         print(f"C1: {checkpoint1 - start:.4f}s")
-        print(f"C2: {checkpoint2 - start:.4f}s")
-        print(f"C3: {checkpoint3 - start:.4f}s")
-        print(f"C4: {checkpoint4 - start:.4f}s")
-        print(f"C5: {checkpoint5 - start:.4f}s")
-        print(f"C6: {checkpoint6 - start:.4f}s")
+        print(f"C2: {checkpoint2 - checkpoint1:.4f}s")
+        print(f"C3: {checkpoint3 - checkpoint2:.4f}s")
+        print(f"C4: {checkpoint4 - checkpoint3:.4f}s")
+        print(f"C5: {checkpoint5 - checkpoint4:.4f}s")
+        print(f"C6: {checkpoint6 - checkpoint5:.4f}s")
 
 
     def _delete_cell(self, pos: tuple | int):
