@@ -750,8 +750,8 @@ class ImageEditingView(ft.Card):
             contours, _ = cv2.findContours(lines_data, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cv2.fillPoly(temp_mask_cell, contours, 1)
 
-        conflict_mask = (mask == 0) & (outline == 0)
-        mask[temp_mask_cell == 1 & conflict_mask] = free_id
+        valid_area = (temp_mask_cell == 1) & (mask == 0) & (outline == 0)
+        mask[valid_area] = free_id
 
         current_cell_full = (mask == free_id).astype(np.uint8)
 
