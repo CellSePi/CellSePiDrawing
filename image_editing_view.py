@@ -17,7 +17,7 @@ from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 
 
-def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0):
+def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
     shape = list(image.shape)
     check = image.ndim == 3
     if check:
@@ -39,11 +39,11 @@ def load_image(image,auto_adjust=False,get_slice=-1,brightness=1.0, contrast=1.0
             img = enhancer.enhance(contrast)
 
         buffer = BytesIO()
-        img.save(buffer, format="PNG",compress_level=0)
+        img.save(buffer, format="PNG", compress_level=0)
         buffer.seek(0)
-        return base64.b64encode(buffer.getvalue()).decode('utf-8'),shape,check
+        return base64.b64encode(buffer.getvalue()).decode('utf-8'), shape, check
 
-    _, buffer = cv2.imencode('.png', image,[cv2.IMWRITE_PNG_COMPRESSION, 0])
+    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
     return base64.b64encode(buffer).decode('utf-8'), shape, check
 
@@ -56,43 +56,33 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
         mask= the mask data stored in the numpy directory
         outline= the outline data stored in the numpy directory
     """
-    if mask.ndim == 3:
-        if slice_id >= 0:
-            mask = mask[slice_id, :, :]
-        else:
-            mask = mask.any(axis=0)
+    if mask.ndim == 3:  # if 3d get the given slice or get a max projection
+        mask_slice = mask[slice_id] if slice_id >= 0 else mask.any(axis=0)
+        outline_slice = outline[slice_id] if slice_id >= 0 else outline.any(axis=0)
+    else:  # 2d nothing to do
+        mask_slice = mask
+        outline_slice = outline
 
-    mask = mask != 0
+    # filter values greater than 0
+    mask_bool = mask_slice > 0
+    outline_bool = outline_slice > 0
 
-    if outline.ndim == 3:
-        if slice_id >= 0:
-            outline = outline[slice_id, :, :]
-        else:
-            outline = outline.any(axis=0)
+    has_mask = mask_bool.any()
+    has_outline = outline_bool.any()
 
-    outline = outline != 0
+    image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
+                          dtype=np.uint8)  # uint8 because here we dont use the cell_id's
 
-    image_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
+    if has_mask:
+        image_mask[mask_bool] = (mask_color[2], mask_color[1], mask_color[0], opacity)
 
-    if mask.any():
-        r,g,b = mask_color
-        image_mask[mask] = (r, g, b, opacity)
+    if has_outline:
+        image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
-    if outline.any():
-        r, g, b = outline_color
-        image_mask[outline] = (r, g, b, 255)
+    encode_params = [cv2.IMWRITE_PNG_COMPRESSION, 1]
+    success, buffer = cv2.imencode('.png', image_mask, encode_params)
 
-    im= Image.fromarray(image_mask, mode="RGBA")
-
-    #saves the image as a image(base64)
-    buffer= BytesIO()
-    im.save(buffer, format="PNG", compress_level=0)
-
-    buffer.seek(0)
-    image_base_64= base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-    #saves the created output image.
-    return image_base_64
+    return base64.b64encode(buffer).decode('utf-8')
 
 
 def _get_cell_id_from_position(position, mask):
@@ -104,22 +94,23 @@ def _get_cell_id_from_position(position, mask):
         return mask[y, x]
     return None
 
+
 class FluorescenceCache:
     def __init__(self, max_values=30):
         self.fluorescence_cache = OrderedDict()
-        self._max_values =max_values
+        self._max_values = max_values
 
     def clear(self):
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, channel, zslice=None):
-        if zslice == -1 :
-            zslice =None
+        if zslice == -1:
+            zslice = None
 
         if channel not in self.fluorescence_cache:
             self.fluorescence_cache[channel] = OrderedDict()
         if zslice not in self.fluorescence_cache[channel]:
-            self.fluorescence_cache[channel][zslice] =OrderedDict()
+            self.fluorescence_cache[channel][zslice] = OrderedDict()
 
         if cell_id in self.fluorescence_cache[channel][zslice]:
             self.fluorescence_cache[channel][zslice].move_to_end(cell_id)
@@ -150,7 +141,7 @@ class ImageCache:
             return self.cache[path]
         else:
             image = tifffile.imread(path)
-            self.add_image(path,image)
+            self.add_image(path, image)
             return image
 
     def add_image(self, path, data):
@@ -162,13 +153,14 @@ class ImageCache:
     def clear(self):
         self.cache.clear()
 
+
 class ImageEditingView(ft.Card):
-    def __init__(self,on_mask_change: typing.Callable[[str,bool], None] = None):
+    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path =None#Could set a mask_path for TESTING
-        self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path = None  # Could set a mask_path for TESTING
+        self._mask_data = None  # np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -185,46 +177,52 @@ class ImageEditingView(ft.Card):
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
         self._user_2_5d = False
-        self.on_mask_change = on_mask_change or (lambda x,y: None)
+        self.on_mask_change = on_mask_change or (lambda x, y: None)
         self.mask_suffix = "_seg"
-        self.expand=True
+        self.expand = True
         self._redo_stack = []
         self._undo_stack = []
         self._edit_allowed = True
-        self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False,gapless_playback=True,expand=True)
-        self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN,visible=False,gapless_playback=True,expand=True)
-        self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,on_show_ids=self.show_ids_and_value)
+        self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
+                                    expand=True)
+        self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
+                                    expand=True)
+        self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
+                                        on_show_ids=self.show_ids_and_value)
 
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
                                           style=ft.ButtonStyle(
-                                              shape=ft.RoundedRectangleBorder(radius=12),), on_click=lambda e: self._show_mask(),
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          on_click=lambda e: self._show_mask(),
                                           tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=True)
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
-                                              shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
-                                          tooltip="Draw mode", hover_color=ft.Colors.WHITE_12,on_click=lambda e:self._toggle_draw())
+                                              shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
+                                          tooltip="Draw mode", hover_color=ft.Colors.WHITE_12,
+                                          on_click=lambda e: self._toggle_draw())
         self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.BLACK_12,
-                                          style=ft.ButtonStyle(
-                                              shape=ft.RoundedRectangleBorder(radius=12), ),disabled=True,
-                                          tooltip="Delete mode", hover_color=ft.Colors.WHITE12,on_click=lambda e: self._toggle_delete())
+                                            style=ft.ButtonStyle(
+                                                shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
+                                            tooltip="Delete mode", hover_color=ft.Colors.WHITE12,
+                                            on_click=lambda e: self._toggle_delete())
         self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Delete the complete mask", hover_color=ft.Colors.WHITE12,
-                                            on_click=lambda e: self.delete_mask())
+                                                 style=ft.ButtonStyle(
+                                                     shape=ft.RoundedRectangleBorder(radius=12), ),
+                                                 tooltip="Delete the complete mask", hover_color=ft.Colors.WHITE12,
+                                                 on_click=lambda e: self.delete_mask())
         self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.BLACK_12,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Redo action", hover_color=ft.Colors.WHITE_12,
-                                            on_click=lambda e: self.redo_stack(e),disabled=True)
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          tooltip="Redo action", hover_color=ft.Colors.WHITE_12,
+                                          on_click=lambda e: self.redo_stack(e), disabled=True)
 
         self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.BLACK_12,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=12), ),
-                                            tooltip="Undo action", hover_color=ft.Colors.WHITE12,
-                                            on_click=lambda e: self.undo_stack(e),disabled=True)
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          tooltip="Undo action", hover_color=ft.Colors.WHITE12,
+                                          on_click=lambda e: self.undo_stack(e), disabled=True)
 
-        #controls for visible cell id and value, when hovered over the cell mask
+        # controls for visible cell id and value, when hovered over the cell mask
         self._show_id_checkbox = ft.IconButton(
             icon=ft.CupertinoIcons.NUMBER_CIRCLE_FILL,
             icon_color=ft.Colors.BLACK_12,
@@ -249,8 +247,8 @@ class ImageEditingView(ft.Card):
         )
 
         self._slider_2_5d = ft.Slider(
-            min=0, max=100, divisions=None, label="Slice: {value}",value=0,
-            opacity=1.0 if self._user_2_5d else 0.0, height=20,width=170,
+            min=0, max=100, divisions=None, label="Slice: {value}", value=0,
+            opacity=1.0 if self._user_2_5d else 0.0, height=20, width=170,
             active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
             on_change=lambda e: self._slider2_5d_change()
@@ -261,58 +259,62 @@ class ImageEditingView(ft.Card):
             bgcolor=ft.Colors.WHITE60,
             padding=ft.padding.symmetric(0, 0),
             controls=[
-                ft.Text("2D", color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD),
-                ft.Text("2.5D", color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD)
+                ft.Text("2D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
+                ft.Text("2.5D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD)
             ],
             on_change=lambda e: self._slider2d_update(e)
         )
         self._shifting_check_box = ft.IconButton(
-            icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED,color=ft.Colors.WHITE60),
+            icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE60),
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=12),),
+                shape=ft.RoundedRectangleBorder(radius=12), ),
             hover_color=ft.Colors.WHITE12,
-            selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED,color=ft.Colors.WHITE),
+            selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
-                [   self._undo_button,
-                    self._redo_button,
-                    self._shifting_check_box,
-                    self._edit_button,
-                    self._delete_button,
-                    self._mask_button,
-                    self._slider_2d,
-                    ft.Container(
-                        content=self._slider_2_5d,
-                        theme=ft.Theme(
-                            slider_theme=ft.SliderTheme(
-                                value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,weight=ft.FontWeight.BOLD),
-                            )
-                        ),
-                        dark_theme=ft.Theme(
-                            slider_theme=ft.SliderTheme(
-                                value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,weight=ft.FontWeight.BOLD),
-                            )
-                        ),
-                    ),
-                    self._delete_mask_button,
-                    self._show_id_checkbox,
-                ], spacing=2,alignment=ft.MainAxisAlignment.CENTER,height=38,
-            ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
+            [self._undo_button,
+             self._redo_button,
+             self._shifting_check_box,
+             self._edit_button,
+             self._delete_button,
+             self._mask_button,
+             self._slider_2d,
+             ft.Container(
+                 content=self._slider_2_5d,
+                 theme=ft.Theme(
+                     slider_theme=ft.SliderTheme(
+                         value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,
+                                                                 weight=ft.FontWeight.BOLD),
+                     )
+                 ),
+                 dark_theme=ft.Theme(
+                     slider_theme=ft.SliderTheme(
+                         value_indicator_text_style=ft.TextStyle(color=ft.Colors.BLACK, size=15,
+                                                                 weight=ft.FontWeight.BOLD),
+                     )
+                 ),
+             ),
+             self._delete_mask_button,
+             self._show_id_checkbox,
+             ], spacing=2, alignment=ft.MainAxisAlignment.CENTER, height=38,
+        ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
 
-                ))
+        ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
                                                                   ], expand=True), expand=True)
 
-        self.content = ft.Stack([ft.Column(controls=[ft.Container(self.image_stack,alignment=ft.Alignment.CENTER,expand=True),self.control_tools],spacing=0),
-                                                                    ft.Container(
-                                                                      content=self._id_info,
-                                                                      right=15,
-                                                                      top=15,
-                                                                  )])
+        self.content = ft.Stack([ft.Column(
+            controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True), self.control_tools],
+            spacing=0),
+                                 ft.Container(
+                                     content=self._id_info,
+                                     right=15,
+                                     top=15,
+                                 )])
 
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
@@ -321,13 +323,13 @@ class ImageEditingView(ft.Card):
         self._main_paths = main_paths
 
     def set_colors(self, mask_color, outline_color, opacity):
-        self.drawing_tool.draw_color= rgb_to_hex(outline_color)
+        self.drawing_tool.draw_color = rgb_to_hex(outline_color)
         self.mask_color = mask_color
         self.outline_color = outline_color
         self.mask_opacity = opacity
-        self.update_mask_image()
+        self.page.run_task(self.update_mask_image)
 
-    def reset_image(self,without_update=False):
+    def reset_image(self, without_update=False):
         self._main_image.src = "Placeholder"
         self._main_image.visible = False
         self._seg_channel_id = None
@@ -376,14 +378,14 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
             self._delete_mask_button.update()
 
-    def select_image(self, img_id, channel_id,seg_channel_id):
+    def select_image(self, img_id, channel_id, seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
             self._load_mask_image(img_id, seg_channel_id)
         self._image_id = img_id
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         self._load_main_image(img_id, channel_id)
-        #reset undo/redo when a new image is selected
+        # reset undo/redo when a new image is selected
         self._redo_stack.clear()
         self._undo_stack.clear()
         self._redo_button.disabled = True
@@ -406,7 +408,7 @@ class ImageEditingView(ft.Card):
         self._mask_image.visible = False
         self._main_image.update()
 
-    def _slider2d_update(self,e):
+    def _slider2d_update(self, e):
         if int(e.data) == 1:
             self._slider_2_5d.opacity = 1.0
             self.user_2_5d = True
@@ -424,8 +426,8 @@ class ImageEditingView(ft.Card):
             self._slice_id = -1
 
         if self._main_image.src != "Placeholder":
-            self._load_main_image(self._image_id,self._channel_id)
-            self.update_mask_image()
+            self._load_main_image(self._image_id, self._channel_id)
+            self.page.run_task(self.update_mask_image)
             if self._image_3d:
                 self._redo_stack.clear()
                 self._undo_stack.clear()
@@ -441,22 +443,22 @@ class ImageEditingView(ft.Card):
             task.cancel()
         self._running_tasks.clear()
 
-    async def _adjust_image_async(self, path, brightness,contrast):
-        return await asyncio.to_thread(load_image,self._image_cache.get_image(path),False, self._slice_id,brightness,contrast)
+    async def _adjust_image_async(self, path, brightness, contrast):
+        return await asyncio.to_thread(load_image, self._image_cache.get_image(path), False, self._slice_id, brightness,
+                                       contrast)
 
     async def _update_main_image(self, path):
         """
         Updates the main image as base64_image with the new brightness and contrast values.
         """
         src, shape, img_3d = await self._adjust_image_async(path,
-            self.brightness,
-            self.contrast
-        )
+                                                            self.brightness,
+                                                            self.contrast
+                                                            )
         self._main_image.src = src
         self._main_image.update()
 
-
-    async def update_main_image_with_brightness_contrast(self,path):
+    async def update_main_image_with_brightness_contrast(self, path):
         task = asyncio.create_task(self._update_main_image(path))
         self._running_tasks.add(task)
         try:
@@ -466,12 +468,13 @@ class ImageEditingView(ft.Card):
         finally:
             self._running_tasks.discard(task)
 
-    def _load_main_image_with_path(self,path):
+    def _load_main_image_with_path(self, path):
         self.cancel_all_tasks()
-        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust, get_slice=self._slice_id,brightness=self.brightness,contrast=self.contrast)
+        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust,
+                                        get_slice=self._slice_id, brightness=self.brightness, contrast=self.contrast)
         self._main_image.src = src
         self._main_image.visible = True
-        self.drawing_tool.set_bounds(shape[1],shape[0])
+        self.drawing_tool.set_bounds(shape[1], shape[0])
         self._main_image.update()
         if img_3d:
             self._image_3d = True
@@ -564,12 +567,14 @@ class ImageEditingView(ft.Card):
                     new_path = self._mask_paths[img_id][seg_channel_id]
                     if new_path != self._mask_path:
                         self._mask_data = np.load(
-                            Path(self._mask_paths[img_id][seg_channel_id]),allow_pickle=True).item()
+                            Path(self._mask_paths[img_id][seg_channel_id]), allow_pickle=True).item()
                         self._mask_path = new_path
                         self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
                         self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
 
-                    self._mask_image.src = convert_npy_to_canvas(self._mask_data["masks"], self._mask_data["outlines"], self.mask_color, self.outline_color, self.mask_opacity, slice_id=self._slice_id)
+                    self._mask_image.src = convert_npy_to_canvas(self._mask_data["masks"], self._mask_data["outlines"],
+                                                                 self.mask_color, self.outline_color, self.mask_opacity,
+                                                                 slice_id=self._slice_id)
                     self._mask_image.update()
                     if not self._mask_image.visible:
                         self._mask_button.icon_color = ft.Colors.WHITE60
@@ -588,15 +593,16 @@ class ImageEditingView(ft.Card):
         self._mask_button.disabled = True
         self._mask_button.update()
 
-    def update_mask_image(self):
+    async def update_mask_image(self):
         if self._mask_path is not None:
-            self.page.run_task(self._async_update_mask_image)
-        elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
+            await self._async_update_mask_image()
+        elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in \
+                self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
             self._mask_path = self._mask_paths[self._image_id][self._seg_channel_id]
             self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
             self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
             self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
-            self.page.run_task(self._async_update_mask_image)
+            await self._async_update_mask_image()
         else:
             self._mask_image.src = "Placeholder"
             self._mask_image.visible = False
@@ -616,6 +622,11 @@ class ImageEditingView(ft.Card):
     async def _async_update_mask_image(self):
         if self._mask_data is None:
             return
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
+        self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
+                                                       self.outline_color, self.mask_opacity, self._slice_id)
+        self._mask_image.update()
         if not self._mask_image.visible:
             self._mask_button.icon_color = ft.Colors.WHITE60
             self._mask_button.tooltip = "Show mask"
@@ -627,22 +638,18 @@ class ImageEditingView(ft.Card):
             else:
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
-        mask = self._mask_data["masks"]
-        outline = self._mask_data["outlines"]
-        self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color, self.outline_color, self.mask_opacity, self._slice_id)
-        self._mask_image.update()
 
     def _show_mask(self):
         self._mask_image.visible = not self._mask_image.visible
         self._mask_image.update()
         self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE60
-        self._mask_button.tooltip="Hide mask" if self._mask_image.visible else "Show mask"
+        self._mask_button.tooltip = "Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
 
     def _toggle_draw(self):
-        self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color==ft.Colors.WHITE_60 else ft.Colors.WHITE60
+        self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
         self._edit_button.update()
-        if self._edit_button.icon_color==ft.Colors.WHITE:
+        if self._edit_button.icon_color == ft.Colors.WHITE:
             self._delete_button.icon_color = ft.Colors.WHITE60
             self._delete_button.update()
             self.drawing_tool.draw()
@@ -660,7 +667,7 @@ class ImageEditingView(ft.Card):
         else:
             self.drawing_tool.deactivate_delete()
 
-    def _toggle_shifting(self,e):
+    def _toggle_shifting(self, e):
         e.control.selected = not e.control.selected
         if e.control.selected:
             e.control.tooltip = "Shifting IDs: ON \n(Shifts the IDs when a mask is deleted to restore an order without gaps.)"
@@ -691,11 +698,13 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self._async_cell_drawn, data_to_pass)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
-        #update the mask data
+        # update the mask data
         # gets the pixels that build the lines of the drawn cell
         is_new_mask = False
-        if self._mask_path is None: #currently no mask is given
-            if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]:
+        if self._mask_path is None:  # currently no mask is given
+            if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
+                                                                                                                       self._main_paths[
+                                                                                                                           self._image_id]:
                 return
             is_new_mask = True
             image_path = self._main_paths[self._image_id][self._seg_channel_id]
@@ -708,13 +717,13 @@ class ImageEditingView(ft.Card):
             self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
             image_width, image_height = self.drawing_tool.get_bounds()
             if not self._image_3d:
-                #2D Case
+                # 2D Case
                 self._mask_data = {
                     "masks": np.zeros((image_height, image_width), dtype=np.uint16),
                     "outlines": np.zeros((image_height, image_width), dtype=np.uint16)
                 }
             else:
-                #3D-Image Case (with Z-Slices)
+                # 3D-Image Case (with Z-Slices)
                 self._mask_data = {
                     "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16),
                     "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
@@ -733,7 +742,8 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
 
-        free_id = await asyncio.to_thread(search_free_id, mask, outline)  # search for the next free id in mask and outline
+        free_id = await asyncio.to_thread(search_free_id, mask,
+                                          outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
@@ -777,9 +787,8 @@ class ImageEditingView(ft.Card):
             if outline_3d.ndim == 3:
                 outline_3d[self._slice_id, :, :] = outline
         self._mask_data = {"masks": mask if self._slice_id == -1 else mask_3d,
-                            "outlines": outline if self._slice_id == -1 else outline_3d}
-
-        self.update_mask_image()
+                           "outlines": outline if self._slice_id == -1 else outline_3d}
+        await self.update_mask_image()
         if not self._mask_image.visible:
             self._mask_image.visible = True
             self._mask_image.update()
@@ -795,15 +804,14 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
 
         self._trigger_background_save()
-        self.on_mask_change(self._image_id,is_new_mask)
-
+        self.on_mask_change(self._image_id, is_new_mask)
 
     def _delete_cell(self, pos: tuple | int):
-        self.page.run_task(self._async_delete_cell,pos)
+        self.page.run_task(self._async_delete_cell, pos)
 
     async def _async_delete_cell(self, pos: tuple | int):
 
-        #delete the cell in the mask data
+        # delete the cell in the mask data
         if self._mask_path is None:
             return
 
@@ -828,8 +836,9 @@ class ImageEditingView(ft.Card):
                 return
             cell_id = cell_id_outline
 
-        #delete saved fluorescence cache, if cell is deleted
-        self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+        # delete saved fluorescence cache, if cell is deleted
+        self._fluorescence_cache.fluorescence_cache[self._channel_id][
+            self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id)
@@ -839,7 +848,7 @@ class ImageEditingView(ft.Card):
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
-        #------
+        # ------
 
         mask[cell_mask] = 0
         outline[cell_outline] = 0
@@ -847,9 +856,9 @@ class ImageEditingView(ft.Card):
             await asyncio.to_thread(mask_shifting, self._mask_data, cell_id, self._slice_id)
             self._fluorescence_cache.clear()
 
-        self.update_mask_image()
+        await self.update_mask_image()
         self._trigger_background_save()
-        self.on_mask_change(self._image_id,False)
+        self.on_mask_change(self._image_id, False)
 
     def _trigger_background_save(self):
         if self._save_task and not self._save_task.done():
@@ -859,7 +868,7 @@ class ImageEditingView(ft.Card):
 
     async def _save_async(self):
         if self._mask_path is not None and self._mask_data is not None:
-                await asyncio.to_thread(np.save, self._mask_path, self._mask_data, allow_pickle=True)
+            await asyncio.to_thread(np.save, self._mask_path, self._mask_data, allow_pickle=True)
 
     def delete_mask(self):
         def cancel_dialog(a):
@@ -892,14 +901,14 @@ class ImageEditingView(ft.Card):
                 self._id_info.visible = False
                 self._id_info.update()
                 self._show_id_checkbox.update()
-                self.update_mask_image()
-                self.on_mask_change(self._image_id,True)
+                self.page.run_task(self.update_mask_image)
+                self.on_mask_change(self._image_id, True)
 
         cupertino_alert_dialog = ft.CupertinoAlertDialog(
             title=ft.Text("Delete Entire Mask"),
             content=ft.Text("Are you sure you want to delete all drawn cells on this image?\n\n"
-                           "The underlying mask file will be deleted. "
-                           "You can always start over by drawing new cells, but the current state cannot be recovered with undo operations."),
+                            "The underlying mask file will be deleted. "
+                            "You can always start over by drawing new cells, but the current state cannot be recovered with undo operations."),
             actions=[
                 ft.CupertinoDialogAction(
                     "Cancel", default=True, on_click=cancel_dialog
@@ -911,7 +920,7 @@ class ImageEditingView(ft.Card):
         cupertino_alert_dialog.open = True
         self.page.update()
 
-    def redo_stack(self,e):
+    def redo_stack(self, e):
         if len(self._redo_stack) == 0:
             return
         self._undo_button.icon_color = ft.Colors.WHITE_60
@@ -935,7 +944,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.disabled = True
             self._undo_button.update()
 
-    def undo_stack(self,e):
+    def undo_stack(self, e):
         if len(self._undo_stack) == 0:
             return
 
@@ -960,7 +969,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.disabled = True
             self._undo_button.update()
 
-    def show_ids_and_value(self,pos: tuple):
+    def show_ids_and_value(self, pos: tuple):
         if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
             return
 
@@ -971,7 +980,7 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             mask = mask[self._slice_id, :, :]
 
-        #if hovered over cell, get cell id
+        # if hovered over cell, get cell id
         cell_id = _get_cell_id_from_position(pos, mask)
 
         if cell_id is None or cell_id == 0:
@@ -979,13 +988,15 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
             return
 
-        #load fluorescence value from cache
-        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id,mask,np.array(self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),self._channel_id, self._slice_id)
-        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-         #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
+        # load fluorescence value from cache
+        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
+            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
+                                                                     self._slice_id)
+        # cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
+        #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
 
-        #show id and value in canvas
-        if self._show_id_checkbox.selected :
+        # show id and value in canvas
+        if self._show_id_checkbox.selected:
             self._id_info.content.value = (
                 f"Cell ID: {cell_id}\n"
                 f"Value: {cell_value:.2f}"
