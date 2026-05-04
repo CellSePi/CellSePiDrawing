@@ -989,7 +989,7 @@ class ImageEditingView(ft.Card):
                 f"Value: {cell_value:.2f}"
             )
             self._id_info.visible = True
-            self.id_info.update()
+            self._id_info.update()
 
     def disable_editing_without_update(self):
         self._edit_allowed = False
