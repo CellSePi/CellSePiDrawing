@@ -181,7 +181,6 @@ class ImageEditingView(ft.Card):
         self._running_tasks = set()
         self.brightness = 1.0
         self.contrast = 1.0
-        self._on_click = False
         self.auto_adjust = False
         self.mask_color = (255, 0, 0)
         self.outline_color = (0, 255, 0)
@@ -373,11 +372,10 @@ class ImageEditingView(ft.Card):
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
 
-    def select_image(self, img_id, channel_id,seg_channel_id, on_click=False):
+    def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
             self._load_mask_image(img_id, seg_channel_id)
         self._image_id = img_id
-        self._on_click = on_click
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         self._load_main_image(img_id, channel_id)
@@ -786,8 +784,15 @@ class ImageEditingView(ft.Card):
             self._mask_image.visible = True
             self._mask_image.update()
             self._mask_button.icon_color = ft.Colors.WHITE
+            self._mask_button.disabled = False
             self._mask_button.tooltip = "Hide mask"
             self._mask_button.update()
+            self._show_id_checkbox.disabled = False
+            if self._show_id_checkbox.selected:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE
+            else:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+            self._show_id_checkbox.update()
 
         self._trigger_background_save()
         self.on_mask_change(self._image_id,is_new_mask)
