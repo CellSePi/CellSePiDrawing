@@ -87,7 +87,7 @@ class DrawingTool(cv.Canvas):
         self._state.cell_info_mode = False
 
 
-    def handle_click(self, e: ft.TapEvent):
+    async def handle_click(self, e: ft.TapEvent):
         if self._state.delete_mode:
             self.on_cell_deleted(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
@@ -95,7 +95,7 @@ class DrawingTool(cv.Canvas):
         if self._state.cell_info_mode and self._state.start_point is None:
             self.show_ids(self.translate_into_image_coordinates((e.local_position.x, e.local_position.y)))
 
-    def handle_pan_start(self, e: ft.DragStartEvent):
+    async def handle_pan_start(self, e: ft.DragStartEvent):
         if self._state.drawing_mode:
             x, y = self.clamp_to_image_bounds((e.local_position.x, e.local_position.y))
             self._state.x = x
@@ -123,7 +123,7 @@ class DrawingTool(cv.Canvas):
             self._state.x = x
             self._state.y = y
 
-    def handle_pan_end(self):
+    async def handle_pan_end(self):
         if self._state.drawing_mode and self._state.start_point is not None:
             self._state.lines.append((self.translate_into_image_coordinates((self._state.x, self._state.y)), self.translate_into_image_coordinates((self._state.start_point[0], self._state.start_point[1]))))
             self.on_cell_drawn(self._state.lines)
