@@ -744,18 +744,23 @@ class ImageEditingView(ft.Card):
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         new_cell_outline = np.zeros_like(outline, dtype=np.uint16)
         if type(lines_data) is list:
+            pts = []
             for line in lines_data:
-                pt1 = (int(line[0][0]), int(line[0][1]))
-                pt2 = (int(line[1][0]), int(line[1][1]))
-                cv2.line(new_cell_outline, pt1, pt2, 1, thickness=1)
-        else:
-            new_cell_outline = lines_data
+                pts.append([line[0][0], line[0][1]])
+            pts = np.array(pts, dtype=np.int32)
+            temp_filled = np.zeros_like(mask_slice, dtype=np.uint8)
+            cv2.fillPoly(temp_filled, [pts], 1)
+            temp_outline = np.zeros_like(mask_slice, dtype=np.uint8)
+            cv2.polylines(temp_outline, [pts], isClosed=True, color=1, thickness=1)
 
-        # Traces the outline of the new cell and fills the mask based on the outline
-        contour = await asyncio.to_thread(trace_contour, new_cell_outline)
-        new_mask = await asyncio.to_thread(fill_polygon_from_outline, contour, mask.shape)  # gets the inner pixels of the new cell
-        mask[(new_mask == 1) & (mask == 0) & (
-                    outline == 0)] = free_id  # adds them to the npy if they not overlap with the already existing cells
+        else:
+            temp_outline = lines_data
+            contours, _ = cv2.findContours(temp_outline, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            temp_filled = np.zeros_like(mask_slice, dtype=np.uint8)
+            cv2.fillPoly(temp_filled, contours, 1)
+
+        mask[(temp_filled == 1) & (mask == 0) & (outline == 0)] = free_id
+        outline[(temp_outline == 1) & (mask == 0) & (outline == 0)] = free_id
 
         # search if inline pixels (mask) have no outline, if the pixel have no outline neighbor make them to outline and delete them from mask
         new_border_pixels = await asyncio.to_thread(find_border_pixels, mask, outline, free_id)
