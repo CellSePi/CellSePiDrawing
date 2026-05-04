@@ -371,6 +371,7 @@ class ImageEditingView(ft.Card):
         self._id_info.update()
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
+        self._edit_allowed = True
 
     def select_image(self, img_id, channel_id,seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
