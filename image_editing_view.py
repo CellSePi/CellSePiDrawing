@@ -721,12 +721,6 @@ class ImageEditingView(ft.Card):
                     "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
                 }
 
-        line_pixels = set()
-        if type(lines_data) is list:
-            for line in lines_data:
-                pixels = bresenham_line(line[0], line[1])  # Calculates the pixels along the line
-                line_pixels.update(pixels)
-
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
 
@@ -750,11 +744,10 @@ class ImageEditingView(ft.Card):
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         new_cell_outline = np.zeros_like(outline, dtype=np.uint16)
         if type(lines_data) is list:
-            for x, y in line_pixels:
-                if 0 <= x < outline.shape[1] and 0 <= y < outline.shape[0]:
-                    new_cell_outline[y, x] = 1
-                    if outline[y, x] == 0 and mask[y, x] == 0:
-                        outline[y, x] = free_id
+            for line in lines_data:
+                pt1 = (int(line[0][0]), int(line[0][1]))
+                pt2 = (int(line[1][0]), int(line[1][1]))
+                cv2.line(new_cell_outline, pt1, pt2, 1, thickness=1)
         else:
             new_cell_outline = lines_data
 
