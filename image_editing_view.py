@@ -974,7 +974,7 @@ class ImageEditingView(ft.Card):
 
         if cell_id is None or cell_id == 0:
             self._id_info.visible = False
-            self.page.update()
+            self._id_info.update()
             return
 
         #load fluorescence value from cache
@@ -989,7 +989,7 @@ class ImageEditingView(ft.Card):
                 f"Value: {cell_value:.2f}"
             )
             self._id_info.visible = True
-            self.page.update()
+            self.id_info.update()
 
     def disable_editing_without_update(self):
         self._edit_allowed = False
