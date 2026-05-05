@@ -425,7 +425,7 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.opacity = 0.0
             self.user_2_5d = False
 
-        self._slider2_5d_change()
+        await self._slider2_5d_change()
         self._slider_2_5d.update()
 
     async def _slider2_5d_change(self,e):
