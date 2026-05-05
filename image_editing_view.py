@@ -993,11 +993,9 @@ class ImageEditingView(ft.Card):
             return
 
         # load fluorescence value from cache
-        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-        #    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
-
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-           self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
+            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
+
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
