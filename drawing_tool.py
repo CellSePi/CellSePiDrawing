@@ -53,7 +53,7 @@ class DrawingTool(cv.Canvas):
             on_pan_end=self.handle_pan_end,
             on_hover=self.handle_hover,
             drag_interval=5,
-            hover_interval=25,
+            hover_interval=30,
         )
         self.on_resize = self.on_canvas_resize
 

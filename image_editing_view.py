@@ -231,7 +231,7 @@ class ImageEditingView(ft.Card):
             hover_color=ft.Colors.WHITE12,
             selected=False,
             disabled=True,
-            on_click=lambda e: self._toggle_cell_info(),
+            on_click=self._toggle_cell_info,
             tooltip = "By hovering over the image: Show ids and values of the cell"
         )
         self._id_info = ft.Container(
@@ -252,7 +252,7 @@ class ImageEditingView(ft.Card):
             opacity=1.0 if self._user_2_5d else 0.0, height=20, width=170,
             active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
-            on_change=lambda e: self._slider2_5d_change()
+            on_change=self._slider2_5d_change
         )
         self._slider_2d = ft.CupertinoSlidingSegmentedButton(
             selected_index=0 if not self._user_2_5d else 1,
@@ -263,7 +263,7 @@ class ImageEditingView(ft.Card):
                 ft.Text("2D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
                 ft.Text("2.5D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD)
             ],
-            on_change=lambda e: self._slider2d_update(e)
+            on_change=self._slider2d_update
         )
         self._shifting_check_box = ft.IconButton(
             icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE60),
@@ -272,7 +272,7 @@ class ImageEditingView(ft.Card):
             hover_color=ft.Colors.WHITE12,
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
-            on_click=lambda e: self._toggle_shifting(e),
+            on_click=self._toggle_shifting,
             tooltip = "Shifting IDs: OFF \n(Deleted masks will leave gaps in the order of the IDs. No shifting will occur.)"
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
@@ -413,7 +413,7 @@ class ImageEditingView(ft.Card):
         self._mask_image.visible = False
         self._main_image.update()
 
-    def _slider2d_update(self, e):
+    async def _slider2d_update(self, e):
         if int(e.data) == 1:
             self._slider_2_5d.opacity = 1.0
             self.user_2_5d = True
@@ -424,7 +424,7 @@ class ImageEditingView(ft.Card):
         self._slider2_5d_change()
         self._slider_2_5d.update()
 
-    def _slider2_5d_change(self):
+    async def _slider2_5d_change(self,e):
         if self.user_2_5d:
             self._slice_id = int(self._slider_2_5d.value)
         else:
