@@ -232,6 +232,7 @@ class ImageEditingView(ft.Card):
             selected=False,
             disabled=True,
             on_click=lambda e: self._toggle_cell_info(),
+            tooltip = "by hovering over the image: Show ids and values of the cell"
         )
         self._id_info = ft.Container(
             content=ft.Text(
@@ -272,6 +273,7 @@ class ImageEditingView(ft.Card):
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
+            tooltip = "Cell id shifting"
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
             [self._undo_button,
@@ -700,6 +702,7 @@ class ImageEditingView(ft.Card):
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
         # update the mask data
         # gets the pixels that build the lines of the drawn cell
+
         is_new_mask = False
         if self._mask_path is None:  # currently no mask is given
             if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
