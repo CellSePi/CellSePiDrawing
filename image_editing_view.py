@@ -160,7 +160,7 @@ class ImageEditingView(ft.Card):
         self._mask_paths = None
         self._main_paths = None
         self._mask_path = None  # Could set a mask_path for TESTING
-        self._mask_data = None
+        self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -838,7 +838,10 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # delete saved fluorescence cache, if cell is deleted
-        if self._channel_id in self._fluorescence_cache.fluorescence_cache and (self._slice_id in self._fluorescence_cache.fluorescence_cache[self._channel_id] or None in self._fluorescence_cache.fluorescence_cache[self._channel_id]):
+        if (self._channel_id in self._fluorescence_cache.fluorescence_cache
+                and (self._slice_id in self._fluorescence_cache.fluorescence_cache[self._channel_id] or None in self._fluorescence_cache.fluorescence_cache[self._channel_id])
+                and cell_id in self._fluorescence_cache.fluorescence_cache[self._channel_id][
+                self._slice_id if self._slice_id != -1 else None]):
             self._fluorescence_cache.fluorescence_cache[self._channel_id][
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
@@ -995,7 +998,6 @@ class ImageEditingView(ft.Card):
         # load fluorescence value from cache
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
             self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
-
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
