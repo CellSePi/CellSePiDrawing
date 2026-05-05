@@ -325,10 +325,13 @@ class ImageEditingView(ft.Card):
         self._main_paths = main_paths
 
     def set_colors(self, mask_color, outline_color, opacity):
-        self.drawing_tool.draw_color = rgb_to_hex(outline_color)
-        self.mask_color = mask_color
-        self.outline_color = outline_color
-        self.mask_opacity = opacity
+        if mask_color is not None:
+            self.mask_color = mask_color
+        if outline_color is not None:
+            self.drawing_tool.draw_color = rgb_to_hex(outline_color)
+            self.outline_color = outline_color
+        if opacity is not None:
+            self.mask_opacity = opacity
         self.page.run_task(self.update_mask_image)
 
     def reset_image(self, without_update=False):
