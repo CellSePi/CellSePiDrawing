@@ -839,9 +839,9 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # delete saved fluorescence cache, if cell is deleted
-        #if self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id if self._slice_id != -1 else None] is not None:
-        #    self._fluorescence_cache.fluorescence_cache[self._channel_id][
-        #        self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+        if self._channel_id in self._fluorescence_cache.fluorescence_cache and (self._slice_id in self._fluorescence_cache.fluorescence_cache[self._channel_id] or None in self._fluorescence_cache.fluorescence_cache[self._channel_id]):
+            self._fluorescence_cache.fluorescence_cache[self._channel_id][
+                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id)
