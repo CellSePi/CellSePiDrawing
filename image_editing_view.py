@@ -232,7 +232,7 @@ class ImageEditingView(ft.Card):
             selected=False,
             disabled=True,
             on_click=lambda e: self._toggle_cell_info(),
-            tooltip = "by hovering over the image: Show ids and values of the cell"
+            tooltip = "By hovering over the image: Show ids and values of the cell"
         )
         self._id_info = ft.Container(
             content=ft.Text(
@@ -273,7 +273,7 @@ class ImageEditingView(ft.Card):
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=lambda e: self._toggle_shifting(e),
-            tooltip = "Cell id shifting"
+            tooltip = "Shifting IDs: OFF \n(Deleted masks will leave gaps in the order of the IDs. No shifting will occur.)"
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
             [self._undo_button,
@@ -688,14 +688,11 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
         self._show_id_checkbox.update()
 
-    def _cell_drawn(self, lines_data: list | np.ndarray):
-        if lines_data is None or len(lines_data) == 0:
+    def _cell_drawn(self, lines_data: list[tuple[tuple[float, float], tuple[float, float]]]):
+        if not lines_data or len(lines_data) == 0:
             return
-
-        if isinstance(lines_data, np.ndarray):
-            data_to_pass = lines_data.copy()
-        else:
-            data_to_pass = copy.deepcopy(lines_data)
+    
+        data_to_pass = lines_data.copy()
 
         self.page.run_task(self._async_cell_drawn, data_to_pass)
 
@@ -762,10 +759,9 @@ class ImageEditingView(ft.Card):
             cv2.fillPoly(temp_mask_cell, [pts], 1)
 
         else:
-            pts = lines_data.astype(np.int32)
-            if pts.ndim == 2:
-                pts = pts.reshape((-1, 1, 2))
-            cv2.fillPoly(temp_mask_cell, [pts], 1)
+            border_mask = (lines_data > 0).astype(np.uint8)
+            contours, _ = cv2.findContours(border_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(temp_mask_cell, contours, -1, 1, thickness=cv2.FILLED)
 
         valid_area = (temp_mask_cell == 1) & (mask == 0) & (outline == 0)
         mask[valid_area] = free_id
