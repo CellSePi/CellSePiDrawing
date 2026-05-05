@@ -384,8 +384,12 @@ class ImageEditingView(ft.Card):
             self._delete_mask_button.update()
 
     def select_image(self, img_id, channel_id, seg_channel_id):
+        self.page.run_task(self.select_image_async,img_id, channel_id, seg_channel_id)
+
+
+    async def select_image_async(self, img_id, channel_id, seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
-            self._load_mask_image(img_id, seg_channel_id)
+            await self._load_mask_image(img_id, seg_channel_id)
         self._image_id = img_id
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
@@ -565,7 +569,7 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.update()
         return
 
-    def _load_mask_image(self, img_id, seg_channel_id):
+    async def _load_mask_image(self, img_id, seg_channel_id):
         if self._mask_paths is not None:
             if img_id in self._mask_paths:
                 if seg_channel_id in self._mask_paths[img_id]:
@@ -577,7 +581,7 @@ class ImageEditingView(ft.Card):
                         self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
                         self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
 
-                    self._mask_image.src = convert_npy_to_canvas(self._mask_data["masks"], self._mask_data["outlines"],
+                    self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvasself._mask_data["masks"], self._mask_data["outlines"],
                                                                  self.mask_color, self.outline_color, self.mask_opacity,
                                                                  slice_id=self._slice_id)
                     self._mask_image.update()
