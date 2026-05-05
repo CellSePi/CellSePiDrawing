@@ -428,7 +428,7 @@ class ImageEditingView(ft.Card):
         await self._slider2_5d_change()
         self._slider_2_5d.update()
 
-    async def _slider2_5d_change(self,e):
+    async def _slider2_5d_change(self,e=None):
         if self.user_2_5d:
             self._slice_id = int(self._slider_2_5d.value)
         else:
