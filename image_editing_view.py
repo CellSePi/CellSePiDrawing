@@ -193,18 +193,18 @@ class ImageEditingView(ft.Card):
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
-                                          on_click=lambda e: self._show_mask(),
+                                          on_click=self._show_mask,
                                           tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=True)
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
                                           tooltip="Draw mode", hover_color=ft.Colors.WHITE_12,
-                                          on_click=lambda e: self._toggle_draw())
+                                          on_click=self._toggle_draw)
         self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.BLACK_12,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
                                             tooltip="Delete mode", hover_color=ft.Colors.WHITE12,
-                                            on_click=lambda e: self._toggle_delete())
+                                            on_click=self._toggle_delete)
         self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
                                                  style=ft.ButtonStyle(
                                                      shape=ft.RoundedRectangleBorder(radius=12), ),
@@ -644,14 +644,14 @@ class ImageEditingView(ft.Card):
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
 
-    def _show_mask(self):
+    async def _show_mask(self,e):
         self._mask_image.visible = not self._mask_image.visible
         self._mask_image.update()
         self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE60
         self._mask_button.tooltip = "Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
 
-    def _toggle_draw(self):
+    async def _toggle_draw(self,e):
         self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
         self._edit_button.update()
         if self._edit_button.icon_color == ft.Colors.WHITE:
@@ -661,7 +661,7 @@ class ImageEditingView(ft.Card):
         else:
             self.drawing_tool.deactivate_drawing()
 
-    def _toggle_delete(self):
+    async def _toggle_delete(self,e):
         self._delete_button.icon_color = ft.Colors.WHITE if self._delete_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
         self._delete_button.update()
         if self._delete_button.icon_color == ft.Colors.WHITE:
@@ -672,7 +672,7 @@ class ImageEditingView(ft.Card):
         else:
             self.drawing_tool.deactivate_delete()
 
-    def _toggle_shifting(self, e):
+    async def _toggle_shifting(self, e):
         e.control.selected = not e.control.selected
         if e.control.selected:
             e.control.tooltip = "Shifting IDs: ON \n(Shifts the IDs when a mask is deleted to restore an order without gaps.)"
@@ -681,7 +681,7 @@ class ImageEditingView(ft.Card):
 
         e.control.update()
 
-    def _toggle_cell_info(self):
+    async def _toggle_cell_info(self):
         self._show_id_checkbox.selected = not self._show_id_checkbox.selected
         if not self._mask_button.disabled and self._show_id_checkbox.selected:
             self.drawing_tool.show_cell_info()
