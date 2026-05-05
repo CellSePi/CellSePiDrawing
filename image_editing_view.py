@@ -581,7 +581,7 @@ class ImageEditingView(ft.Card):
                         self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
                         self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
 
-                    self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvasself._mask_data["masks"], self._mask_data["outlines"],
+                    self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas,self._mask_data["masks"], self._mask_data["outlines"],
                                                                  self.mask_color, self.outline_color, self.mask_opacity,
                                                                  slice_id=self._slice_id)
                     self._mask_image.update()
