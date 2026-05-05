@@ -160,7 +160,7 @@ class ImageEditingView(ft.Card):
         self._mask_paths = None
         self._main_paths = None
         self._mask_path = None  # Could set a mask_path for TESTING
-        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_data = None
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
