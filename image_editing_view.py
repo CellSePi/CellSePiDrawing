@@ -159,8 +159,8 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = None  # Could set a mask_path for TESTING
-        self._mask_data = None  # np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2_seg.npy"  # Could set a mask_path for TESTING
+        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -214,13 +214,13 @@ class ImageEditingView(ft.Card):
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
                                           tooltip="Redo action", hover_color=ft.Colors.WHITE_12,
-                                          on_click=lambda e: self.redo_stack(e), disabled=True)
+                                          on_click=self.redo_stack, disabled=True)
 
         self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
                                           tooltip="Undo action", hover_color=ft.Colors.WHITE12,
-                                          on_click=lambda e: self.undo_stack(e), disabled=True)
+                                          on_click=self.undo_stack, disabled=True)
 
         # controls for visible cell id and value, when hovered over the cell mask
         self._show_id_checkbox = ft.IconButton(
@@ -745,10 +745,12 @@ class ImageEditingView(ft.Card):
         free_id = await asyncio.to_thread(search_free_id, mask,
                                           outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
+        print("I am here")
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
+        print("I am out",self._undo_stack )
 
         temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
@@ -837,14 +839,16 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # delete saved fluorescence cache, if cell is deleted
-        self._fluorescence_cache.fluorescence_cache[self._channel_id][
-            self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+        #if self._fluorescence_cache.fluorescence_cache[self._channel_id][self._slice_id if self._slice_id != -1 else None] is not None:
+        #    self._fluorescence_cache.fluorescence_cache[self._channel_id][
+        #        self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
         cell_mask = (mask == cell_id)
         cell_outline = (outline == cell_id)
         # add line data to the undo stack to draw the cell later out of the line
         self._undo_stack.append(("draw_action", cell_outline.copy()))
+        print("undo stack", self._undo_stack)
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
@@ -920,7 +924,7 @@ class ImageEditingView(ft.Card):
         cupertino_alert_dialog.open = True
         self.page.update()
 
-    def redo_stack(self, e):
+    async def redo_stack(self, e):
         if len(self._redo_stack) == 0:
             return
         self._undo_button.icon_color = ft.Colors.WHITE_60
@@ -929,9 +933,9 @@ class ImageEditingView(ft.Card):
         first_list_item = self._redo_stack.pop()
 
         if first_list_item[0] == "delete_action":
-            self._delete_cell(first_list_item[1])
+            await self._async_delete_cell(first_list_item[1])
         elif first_list_item[0] == "draw_action":
-            self._cell_drawn(first_list_item[1])
+            await self._async_cell_drawn(first_list_item[1])
         else:
             raise KeyError("no valid action for redo button")
 
@@ -944,7 +948,7 @@ class ImageEditingView(ft.Card):
             self._undo_button.disabled = True
             self._undo_button.update()
 
-    def undo_stack(self, e):
+    async def undo_stack(self, e):
         if len(self._undo_stack) == 0:
             return
 
@@ -953,11 +957,12 @@ class ImageEditingView(ft.Card):
         self._redo_button.update()
         first_list_item = self._undo_stack.pop()
         if first_list_item[0] == "delete_action":
-            self._delete_cell(first_list_item[1])
+            await self._async_delete_cell(first_list_item[1])
         elif first_list_item[0] == "draw_action":
-            self._cell_drawn(first_list_item[1])
+            await self._async_cell_drawn(first_list_item[1])
         else:
             raise KeyError("no valid action for undo button")
+        print("undo after delete:",self._undo_stack)
 
         self._redo_stack.append(self._undo_stack.pop())
         if len(self._redo_stack) == 0:
@@ -989,11 +994,11 @@ class ImageEditingView(ft.Card):
             return
 
         # load fluorescence value from cache
+        #cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
+        #    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
+
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
-                                                                     self._slice_id)
-        # cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-        #   self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
+           self._image_cache.get_image(r"C:\Users\Jenna\Studium\FS5\data\data\output\Series003c2.tif")),self._channel_id, self._slice_id)
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
