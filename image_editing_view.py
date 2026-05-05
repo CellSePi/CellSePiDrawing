@@ -532,7 +532,7 @@ class ImageEditingView(ft.Card):
                     self.drawing_tool.deactivate_cell_info()
             self._slider_2_5d.value = 0 if shape[-2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[2] - 1
-            self._slider_2_5d.divisions = shape[2] - 2
+            self._slider_2_5d.divisions = shape[2] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
         else:
