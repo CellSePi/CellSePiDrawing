@@ -421,16 +421,16 @@ class ImageEditingView(ft.Card):
     async def _slider2d_update(self, e):
         if int(e.data) == 1:
             self._slider_2_5d.opacity = 1.0
-            self.user_2_5d = True
+            self._user_2_5d = True
         else:
             self._slider_2_5d.opacity = 0.0
-            self.user_2_5d = False
+            self._user_2_5d = False
 
         await self._slider2_5d_change()
         self._slider_2_5d.update()
 
     async def _slider2_5d_change(self,e=None):
-        if self.user_2_5d:
+        if self._user_2_5d:
             self._slice_id = int(self._slider_2_5d.value)
         else:
             self._slice_id = -1
@@ -1085,8 +1085,8 @@ class ImageEditingView(ft.Card):
 
     def _handle_show_ids(self,pos:tuple):
         print("image is 3d:", self._image_3d)
-        print("slider is 2D:", self.user_2_5d)
-        if self._image_3d and not self.user_2_5d:
+        print("slider is 2D:", self._user_2_5d)
+        if self._image_3d and not self._user_2_5d:
             self.show_ids_and_value_3d(pos)
         else:
             self.show_ids_and_value(pos)
