@@ -242,7 +242,6 @@ class ImageEditingView(ft.Card):
                 size=14,
                 weight=ft.FontWeight.BOLD
             ),
-            bgcolor=ft.Colors.BLACK54,
             padding=8,
             border_radius=10,
             visible=False,
@@ -1083,10 +1082,8 @@ class ImageEditingView(ft.Card):
                 data_row_color = ft.Colors.WHITE,
                 heading_row_color = ft.Colors.WHITE,
                 bgcolor=ft.Colors.BLACK54,
-                width = 100,
-                column_spacing=1.5,
-                data_row_min_height =1,
-                data_row_max_height = 2,
+                width = 120,
+                column_spacing=3,
             )
             self._id_info.visible = True
             self._id_info.update()
