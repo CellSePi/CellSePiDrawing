@@ -1075,7 +1075,7 @@ class ImageEditingView(ft.Card):
         if self._show_id_checkbox.selected:
             self._id_info.content = ft.DataTable(
                 columns=[
-                    ft.DataColumn(label=ft.Text("Cell ID")),
+                    ft.DataColumn(label=ft.Text("ID")),
                     ft.DataColumn(label=ft.Text("Value")),
             ],
                 rows=values,
@@ -1084,8 +1084,9 @@ class ImageEditingView(ft.Card):
                 heading_row_color = ft.Colors.WHITE,
                 bgcolor=ft.Colors.BLACK54,
                 width = 100,
-                column_spacing=1,
-
+                column_spacing=1.5,
+                data_row_min_height =1,
+                data_row_max_height = 2,
             )
             self._id_info.visible = True
             self._id_info.update()
