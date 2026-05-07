@@ -1035,7 +1035,8 @@ class ImageEditingView(ft.Card):
                 data_row_color = ft.Colors.WHITE,
                 heading_row_color = ft.Colors.WHITE,
                 bgcolor=ft.Colors.BLACK54,
-                width=200,
+                width=100,
+                column_spacing=1,
 
             )
             self._id_info.visible = True
@@ -1082,7 +1083,8 @@ class ImageEditingView(ft.Card):
                 data_row_color = ft.Colors.WHITE,
                 heading_row_color = ft.Colors.WHITE,
                 bgcolor=ft.Colors.BLACK54,
-                width = 200,
+                width = 100,
+                column_spacing=1,
 
             )
             self._id_info.visible = True
