@@ -1019,7 +1019,7 @@ class ImageEditingView(ft.Card):
                     ft.DataRow(
                         cells=[
                             ft.DataCell(ft.Text(f"{cell_id}")),
-                            ft.DataCell(ft.Text(f"{cell_value}.2f")),
+                            ft.DataCell(ft.Text(f"{cell_value:.2f}")),
                         ]
                     ),
                 ],
@@ -1037,8 +1037,6 @@ class ImageEditingView(ft.Card):
 
         mask = self._mask_data["masks"]
 
-        print("image 3D", self._image_3d)
-        print("slider value:", self._user_2_5d)
         if self._image_3d:
             mask = np.transpose(mask, (1, 2, 0))
 
@@ -1047,6 +1045,7 @@ class ImageEditingView(ft.Card):
             raise ValueError("user should be in 2D mode of 3D images")
 
         cell_id = _get_cell_id_from_position(pos, mask)
+        cell_id = np.squeeze(cell_id)
         print("cell id: ", cell_id)
         values =[]
         for cellid in cell_id:
@@ -1057,7 +1056,7 @@ class ImageEditingView(ft.Card):
                 ft.DataRow(
                     cells=[
                         ft.DataCell(ft.Text(f"{cellid}")),
-                        ft.DataCell(ft.Text(f"{cell_value}.2f")),
+                        ft.DataCell(ft.Text(f"{cell_value:.2f}")),
                     ]
                 )
             )
@@ -1079,8 +1078,8 @@ class ImageEditingView(ft.Card):
 
     def _handle_show_ids(self,pos:tuple):
         print("image is 3d:", self._image_3d)
-        print("slider is 2D:", self._user_2_5d)
-        if self._image_3d and self._slider_2d.selected_index == 1:
+        print("slider is 2D:", self.user_2_5d)
+        if self._image_3d and not self.user_2_5d:
             self.show_ids_and_value_3d(pos)
         else:
             self.show_ids_and_value(pos)
