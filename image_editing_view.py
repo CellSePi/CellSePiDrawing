@@ -1017,6 +1017,7 @@ class ImageEditingView(ft.Card):
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
+
             self._id_info.content = ft.DataTable(
                 columns=[
                     ft.DataColumn(label=ft.Text("Cell ID")),
@@ -1030,9 +1031,11 @@ class ImageEditingView(ft.Card):
                         ]
                     ),
                 ],
-                border_radius=10,
+                border_radius=1,
                 data_row_color = ft.Colors.WHITE,
                 heading_row_color = ft.Colors.WHITE,
+                bgcolor=ft.Colors.BLACK54,
+                width=5,
 
             )
             self._id_info.visible = True
@@ -1052,7 +1055,7 @@ class ImageEditingView(ft.Card):
             raise ValueError("user should be in 2D mode of 3D images")
 
         cell_id = _get_cell_id_from_position(pos, mask)
-        cell_id = np.squeeze(cell_id)
+        cell_id = [x for x in cell_id if x != 0]
         print("cell id: ", cell_id)
         values =[]
         for cellid in cell_id:
@@ -1075,9 +1078,11 @@ class ImageEditingView(ft.Card):
                     ft.DataColumn(label=ft.Text("Value")),
             ],
                 rows=values,
-                border_radius=10,
+                border_radius=1,
                 data_row_color = ft.Colors.WHITE,
                 heading_row_color = ft.Colors.WHITE,
+                bgcolor=ft.Colors.BLACK54,
+                width = 5,
 
             )
             self._id_info.visible = True
