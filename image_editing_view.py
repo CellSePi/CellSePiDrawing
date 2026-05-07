@@ -159,7 +159,8 @@ class ImageEditingView(ft.Card):
         super().__init__()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = None  # Could set a mask_path for TESTING
+
+        self._mask_path = None # Could set a mask_path for TESTING
         self._mask_data = None#np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
@@ -188,7 +189,7 @@ class ImageEditingView(ft.Card):
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                     expand=True)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
-                                        on_show_ids=self.show_ids_and_value)
+                                        on_show_ids=self._handle_show_ids)
 
         self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
                                           style=ft.ButtonStyle(
@@ -522,8 +523,8 @@ class ImageEditingView(ft.Card):
                 self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
                 if self._slider_2_5d.opacity != 1.0:
-                    self._show_id_checkbox.disabled = True
-                    self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                    #self._show_id_checkbox.disabled = True
+                    #self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                     self._show_id_checkbox.selected = False
                     self.drawing_tool.deactivate_cell_info()
                     self._id_info.visible = False
@@ -752,12 +753,12 @@ class ImageEditingView(ft.Card):
         free_id = await asyncio.to_thread(search_free_id, mask,
                                           outline)  # search for the next free id in mask and outline
         # add action to undo stack to be able to delete the cell afterward
-        print("I am here")
+
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
-        print("I am out",self._undo_stack )
+
 
         temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
@@ -857,7 +858,6 @@ class ImageEditingView(ft.Card):
         cell_outline = (outline == cell_id)
         # add line data to the undo stack to draw the cell later out of the line
         self._undo_stack.append(("draw_action", cell_outline.copy()))
-        print("undo stack", self._undo_stack)
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False
         self._undo_button.update()
@@ -971,7 +971,7 @@ class ImageEditingView(ft.Card):
             await self._async_cell_drawn(first_list_item[1])
         else:
             raise KeyError("no valid action for undo button")
-        print("undo after delete:",self._undo_stack)
+
 
         self._redo_stack.append(self._undo_stack.pop())
         if len(self._redo_stack) == 0:
@@ -996,6 +996,7 @@ class ImageEditingView(ft.Card):
 
         # if hovered over cell, get cell id
         cell_id = _get_cell_id_from_position(pos, mask)
+        print("cell id: ",cell_id)
 
         if cell_id is None or cell_id == 0:
             self._id_info.visible = False
@@ -1003,17 +1004,62 @@ class ImageEditingView(ft.Card):
             return
 
         # load fluorescence value from cache
+        print("image 3D",self._image_3d)
+        if self._image_3d:
+            mask = np.transpose(mask, (1, 2, 0))
+
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
             self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
-            self._id_info.content.value = (
-                f"Cell ID: {cell_id}\n"
-                f"Value: {cell_value:.2f}"
+            self._id_info.content = ft.DataTable(
+                columns=[
+                    ft.DataColumn(label=ft.Text("Cell ID")),
+                    ft.DataColumn(label=ft.Text("Value")),
+            ],
+                rows=[
+                    ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(f"{cell_id}")),
+                            ft.DataCell(ft.Text(f"{cell_value}")),
+                        ]
+                    ),
+                ],
+                border_radius=10,
+                data_row_color = ft.Colors.WHITE,
+                heading_row_color = ft.Colors.WHITE,
+
             )
             self._id_info.visible = True
             self._id_info.update()
+
+    def show_ids_and_value_3d(self, pos:tuple):
+        if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
+            return
+
+        mask = self._mask_data["masks"]
+
+        print("image 3D", self._image_3d)
+        print("slider value:", self._user_2_5d)
+        if self._image_3d:
+            mask = np.transpose(mask, (1, 2, 0))
+
+
+        if mask.ndim == 3 and self._user_2_5d:
+            raise ValueError("user should be in 2D mode of 3D images")
+
+        cell_id = _get_cell_id_from_position(pos, mask)
+        print("cell id: ", cell_id)
+
+
+
+    def _handle_show_ids(self,pos:tuple):
+        print("image is 3d:", self._image_3d)
+        if self._image_3d and not self._user_2_5d:
+            self.show_ids_and_value_3d(pos)
+        else:
+            self.show_ids_and_value(pos)
 
     def disable_editing_without_update(self):
         self._edit_allowed = False
