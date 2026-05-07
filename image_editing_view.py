@@ -523,8 +523,15 @@ class ImageEditingView(ft.Card):
                 self._delete_button.update()
                 self.drawing_tool.deactivate_delete()
                 if self._slider_2_5d.opacity != 1.0:
-                    self._show_id_checkbox.disabled = True
-                    self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+                    if not self._mask_button.disabled:
+                        self._show_id_checkbox.disabled = False
+                        if self._show_id_checkbox.selected:
+                            self._show_id_checkbox.icon_color = ft.Colors.WHITE
+                        else:
+                            self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+                        self._show_id_checkbox.update()
+                    #self._show_id_checkbox.disabled = True
+                    #self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                     self._show_id_checkbox.selected = False
                     self.drawing_tool.deactivate_cell_info()
                     self._id_info.visible = False
