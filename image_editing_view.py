@@ -104,6 +104,7 @@ class FluorescenceCache:
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
+        print("cache", self.fluorescence_cache)
         if zslice == -1:
             zslice = None
         if image_dim not in self.fluorescence_cache:
@@ -1066,8 +1067,7 @@ class ImageEditingView(ft.Card):
         for i,cellid in enumerate(cell_id):
             if cellid !=0:
                 cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,
-                                                                             self._slice_id)
+                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,i)
                 if (cell_id == cellid).sum() > 1:
                     cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
                 else:
