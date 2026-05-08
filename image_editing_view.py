@@ -1060,8 +1060,7 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             slice_mask = mask[self._slice_id, :, :]
             dimension = "2.5D"
-
-        if self._image_3d:
+        else:
             mask = np.transpose(mask, (1, 2, 0))
             slice_mask = mask
             dimension = "3D"
