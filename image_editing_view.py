@@ -104,7 +104,12 @@ class FluorescenceCache:
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
-        print("cache", self.fluorescence_cache)
+        print("mask dim:", mask.dim)
+        if mask.dim == 3 :
+            cell_mask = mask == cell_id
+            val = float(np.mean(np_image[cell_mask]))
+            return val
+
         if zslice == -1:
             zslice = None
         if image_dim not in self.fluorescence_cache:
@@ -117,7 +122,8 @@ class FluorescenceCache:
         if cell_id in self.fluorescence_cache[image_dim][channel][zslice]:
             self.fluorescence_cache[image_dim][channel][zslice].move_to_end(cell_id)
             self.fluorescence_cache[image_dim][channel].move_to_end(zslice)
-            self.fluorescence_cache.move_to_end(channel)
+            self.fluorescence_cache[image_dim].move_to_end(channel)
+            self.fluorescence_cache.move_to_end(image_dim)
             return self.fluorescence_cache[image_dim][channel][zslice][cell_id]
 
         if len(self.fluorescence_cache[image_dim][channel][zslice]) > self._max_values:
