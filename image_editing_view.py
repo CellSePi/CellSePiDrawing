@@ -1057,7 +1057,7 @@ class ImageEditingView(ft.Card):
                 cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
                     self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
                                                                              self._slice_id)
-                if cell_id.count(cellid) > 1:
+                if (cell_id == cellid).sum() > 1:
                     cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
                 else:
                     cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
