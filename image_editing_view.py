@@ -105,10 +105,6 @@ class FluorescenceCache:
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
         print("mask dim:", mask.ndim)
-        if mask.ndim == 3 :
-            cell_mask = mask == cell_id
-            val = float(np.mean(np_image[cell_mask]))
-            return val
 
         if zslice == -1:
             zslice = None
@@ -1022,10 +1018,6 @@ class ImageEditingView(ft.Card):
 
         mask = self._mask_data["masks"]
 
-        if mask.ndim == 3:
-            if self._slice_id < 0:
-                raise ValueError("slice_id should be non-negative")
-            mask = mask[self._slice_id, :, :]
 
         # if hovered over cell, get cell id
         cell_id = _get_cell_id_from_position(pos, mask)
@@ -1095,7 +1087,7 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
 
     def _handle_show_ids(self,pos:tuple):
-        if self._image_3d and not self._user_2_5d:
+        if self._image_3d and self._user_2_5d:
             self.show_ids_and_value_3d(pos)
         else:
             self.show_ids_and_value(pos)
