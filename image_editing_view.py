@@ -104,8 +104,8 @@ class FluorescenceCache:
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
-        print("mask dim:", mask.ndim)
-        print("image", np_image.ndim)
+        print("mask dim:", mask.shape)
+        print("image", np_image.shape)
 
         if zslice == -1:
             zslice = None
