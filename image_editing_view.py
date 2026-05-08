@@ -1053,11 +1053,16 @@ class ImageEditingView(ft.Card):
 
         mask = self._mask_data["masks"]
 
+        if mask.ndim == 3:
+            if self._slice_id < 0:
+                raise ValueError("slice_id should be non-negative")
+            slice_mask = mask[self._slice_id, :, :]
+
         if self._image_3d:
-            mask = np.transpose(mask, (1, 2, 0))
+            slice_mask = np.transpose(mask, (1, 2, 0))
 
 
-        cell_id = _get_cell_id_from_position(pos, mask)
+        cell_id = _get_cell_id_from_position(pos, slice_mask)
         values =[]
         for i,cellid in enumerate(cell_id):
             if cellid !=0:
@@ -1084,7 +1089,7 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
 
     def _handle_show_ids(self,pos:tuple):
-        if self._image_3d and self._user_2_5d:
+        if self._image_3d or self._user_2_5d:
             self.show_ids_and_value_3d(pos)
         else:
             self.show_ids_and_value(pos)
