@@ -238,7 +238,7 @@ class ImageEditingView(ft.Card):
         self._id_info = ft.Container(
             content=ft.DataTable(
                 columns=[
-                    ft.DataColumn(label=ft.Text("Cell ID")),
+                    ft.DataColumn(label=ft.Text("ID\n(slice)")),
                     ft.DataColumn(label=ft.Text("Value")),
             ],
                 rows=[
