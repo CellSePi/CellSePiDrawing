@@ -110,7 +110,7 @@ class FluorescenceCache:
             self.fluorescence_cache[image_dim] = OrderedDict()
         if channel not in self.fluorescence_cache:
             self.fluorescence_cache[image_dim][channel] = OrderedDict()
-        if zslice not in self.fluorescence_cache[channel]:
+        if zslice not in self.fluorescence_cache[image_dim][channel]:
             self.fluorescence_cache[image_dim][channel][zslice] = OrderedDict()
 
         if cell_id in self.fluorescence_cache[image_dim][channel][zslice]:
@@ -1089,8 +1089,6 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
 
     def _handle_show_ids(self,pos:tuple):
-        print("image is 3d:", self._image_3d)
-        print("slider is 2D:", self._user_2_5d)
         if self._image_3d and not self._user_2_5d:
             self.show_ids_and_value_3d(pos)
         else:
