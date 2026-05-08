@@ -1060,7 +1060,7 @@ class ImageEditingView(ft.Card):
             slice_mask = mask[self._slice_id, :, :]
             cell_id = _get_cell_id_from_position(pos, slice_mask)
             print("cell_id:", cell_id)
-            cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
+            cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
                 self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
                                                                          self._channel_id, self._slice_id)
             values =cell_value
@@ -1068,16 +1068,15 @@ class ImageEditingView(ft.Card):
             mask = np.transpose(mask, (1, 2, 0))
             slice_mask = mask
             cell_id = _get_cell_id_from_position(pos, slice_mask)
+            cell_id = np.unique(cell_id)
             print("cell_id:", cell_id)
             values =[]
-            for i,cellid in enumerate(cell_id):
+            for cellid in cell_id:
                 if cellid !=0:
                     cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,i)
-                    if (cell_id == cellid).sum() > 1:
-                        cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
-                    else:
-                        cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
+                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,self._slice_id)
+
+                    cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
 
                     values.append(
                         ft.DataRow(
