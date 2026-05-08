@@ -243,15 +243,13 @@ class ImageEditingView(ft.Card):
         self._id_info = ft.Container(
             content=ft.DataTable(
                 columns=[
-                    ft.DataColumn(label=ft.Text("ID\n(slice)")),
+                    ft.DataColumn(label=ft.Text("ID")),
                     ft.DataColumn(label=ft.Text("Value")),
             ],
                 rows=[
                 ],
                 border_radius=1,
-                data_row_color = ft.Colors.WHITE,
-                heading_row_color = ft.Colors.WHITE,
-                bgcolor=ft.Colors.BLACK54,
+                bgcolor=None,
                 width=120,
                 column_spacing=4,
 
@@ -1060,6 +1058,10 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             slice_mask = mask[self._slice_id, :, :]
             cell_id = _get_cell_id_from_position(pos, slice_mask)
+            if cell_id is None or cell_id == 0:
+                self._id_info.visible = False
+                self._id_info.update()
+                return
             mask = np.transpose(mask, (1, 2, 0))
             print("cell_id:", cell_id)
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
@@ -1074,6 +1076,7 @@ class ImageEditingView(ft.Card):
         else:
             mask = np.transpose(mask, (1, 2, 0))
             cell_id = _get_cell_id_from_position(pos, mask)
+
             cell_id = np.unique(cell_id)
             print("cell_id:", cell_id)
             values =[]
@@ -1091,6 +1094,10 @@ class ImageEditingView(ft.Card):
                             ]
                         )
                     )
+            if len(values) == 0:
+                self._id_info.visible = False
+                self._id_info.update()
+                return
 
         if self._show_id_checkbox.selected:
             self._id_info.content.rows = values
