@@ -1060,6 +1060,7 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             slice_mask = mask[self._slice_id, :, :]
             cell_id = _get_cell_id_from_position(pos, slice_mask)
+            mask = np.transpose(mask, (1, 2, 0))
             print("cell_id:", cell_id)
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
                 self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
@@ -1067,8 +1068,7 @@ class ImageEditingView(ft.Card):
             values =cell_value
         else:
             mask = np.transpose(mask, (1, 2, 0))
-            slice_mask = mask
-            cell_id = _get_cell_id_from_position(pos, slice_mask)
+            cell_id = _get_cell_id_from_position(pos, mask)
             cell_id = np.unique(cell_id)
             print("cell_id:", cell_id)
             values =[]
