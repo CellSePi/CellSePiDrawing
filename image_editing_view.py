@@ -104,9 +104,6 @@ class FluorescenceCache:
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
-        print("mask dim:", mask.shape)
-        print("image", np_image.shape)
-
         if zslice == -1:
             zslice = None
         if image_dim not in self.fluorescence_cache:
@@ -248,7 +245,8 @@ class ImageEditingView(ft.Card):
             ],
                 rows=[
                 ],
-                border_radius=1,
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border_radius=10,
                 bgcolor=None,
                 width=120,
                 column_spacing=4,
@@ -1063,7 +1061,7 @@ class ImageEditingView(ft.Card):
                 self._id_info.update()
                 return
             mask = np.transpose(mask, (1, 2, 0))
-            print("cell_id:", cell_id)
+
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
                 self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
                                                                          self._channel_id, self._slice_id)
@@ -1078,7 +1076,6 @@ class ImageEditingView(ft.Card):
             cell_id = _get_cell_id_from_position(pos, mask)
 
             cell_id = np.unique(cell_id)
-            print("cell_id:", cell_id)
             values =[]
             for cellid in cell_id:
                 if cellid !=0:
