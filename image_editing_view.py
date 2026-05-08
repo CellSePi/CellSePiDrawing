@@ -104,8 +104,8 @@ class FluorescenceCache:
         self.fluorescence_cache.clear()
 
     def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
-        print("mask dim:", mask.dim)
-        if mask.dim == 3 :
+        print("mask dim:", mask.ndim)
+        if mask.ndim == 3 :
             cell_mask = mask == cell_id
             val = float(np.mean(np_image[cell_mask]))
             return val
