@@ -1053,14 +1053,15 @@ class ImageEditingView(ft.Card):
 
         mask = self._mask_data["masks"]
 
+
         if mask.ndim == 3 and self._user_2_5d:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
             slice_mask = mask[self._slice_id, :, :]
 
         if self._image_3d:
-            slice_mask = np.transpose(mask, (1, 2, 0))
-
+            mask = np.transpose(mask, (1, 2, 0))
+            slice_mask = mask
 
         cell_id = _get_cell_id_from_position(pos, slice_mask)
         values =[]
