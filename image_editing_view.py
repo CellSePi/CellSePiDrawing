@@ -1065,12 +1065,12 @@ class ImageEditingView(ft.Card):
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
                 self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
                                                                          self._channel_id, self._slice_id)
-            values =ft.DataRow(
+            values =[ft.DataRow(
                             cells=[
                                 ft.DataCell(ft.Text(f"{cell_id}")),
                                 ft.DataCell(ft.Text(f"{cell_value:.2f}")),
                             ]
-                        )
+                        )]
         else:
             mask = np.transpose(mask, (1, 2, 0))
             cell_id = _get_cell_id_from_position(pos, mask)
