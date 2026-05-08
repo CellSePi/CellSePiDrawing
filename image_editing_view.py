@@ -1051,36 +1051,29 @@ class ImageEditingView(ft.Card):
             raise ValueError("user should be in 2D mode of 3D images")
 
         cell_id = _get_cell_id_from_position(pos, mask)
-        cell_id = [x for x in cell_id if x != 0]
-        print("cell id: ", cell_id)
         values =[]
-        for cellid in cell_id:
-            cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
-                                                                         self._slice_id)
-            values.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(f"{cellid}")),
-                        ft.DataCell(ft.Text(f"{cell_value:.2f}")),
-                    ]
+        for i,cellid in enumerate(cell_id):
+            if cellid !=0:
+                cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
+                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
+                                                                             self._slice_id)
+                if cell_id.count(cellid) > 1:
+                    cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
+                else:
+                    cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
+
+                values.append(
+                    ft.DataRow(
+                        cells=[
+                            cell_id_cell,
+                            ft.DataCell(ft.Text(f"{cell_value:.2f}")),
+                        ]
+                    )
                 )
-            )
 
         if self._show_id_checkbox.selected:
-            self._id_info.content = ft.DataTable(
-                columns=[
-                    ft.DataColumn(label=ft.Text("ID")),
-                    ft.DataColumn(label=ft.Text("Value")),
-            ],
-                rows=values,
-                border_radius=1,
-                data_row_color = ft.Colors.WHITE,
-                heading_row_color = ft.Colors.WHITE,
-                bgcolor=ft.Colors.BLACK54,
-                width = 120,
-                column_spacing=3,
-            )
+            self._id_info.content.rows = values
+
             self._id_info.visible = True
             self._id_info.update()
 
