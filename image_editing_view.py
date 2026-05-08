@@ -236,11 +236,20 @@ class ImageEditingView(ft.Card):
             tooltip = "By hovering over the image: Show ids and values of the cell"
         )
         self._id_info = ft.Container(
-            content=ft.Text(
-                "",
-                color=ft.Colors.WHITE,
-                size=14,
-                weight=ft.FontWeight.BOLD
+            content=ft.DataTable(
+                columns=[
+                    ft.DataColumn(label=ft.Text("Cell ID")),
+                    ft.DataColumn(label=ft.Text("Value")),
+            ],
+                rows=[
+                ],
+                border_radius=1,
+                data_row_color = ft.Colors.WHITE,
+                heading_row_color = ft.Colors.WHITE,
+                bgcolor=ft.Colors.BLACK54,
+                width=120,
+                column_spacing=3,
+
             ),
             padding=8,
             border_radius=10,
@@ -1017,27 +1026,14 @@ class ImageEditingView(ft.Card):
         # show id and value in canvas
         if self._show_id_checkbox.selected:
 
-            self._id_info.content = ft.DataTable(
-                columns=[
-                    ft.DataColumn(label=ft.Text("Cell ID")),
-                    ft.DataColumn(label=ft.Text("Value")),
-            ],
-                rows=[
+            self._id_info.content.rows = [
                     ft.DataRow(
                         cells=[
                             ft.DataCell(ft.Text(f"{cell_id}")),
                             ft.DataCell(ft.Text(f"{cell_value:.2f}")),
                         ]
                     ),
-                ],
-                border_radius=1,
-                data_row_color = ft.Colors.WHITE,
-                heading_row_color = ft.Colors.WHITE,
-                bgcolor=ft.Colors.BLACK54,
-                width=120,
-                column_spacing=3,
-
-            )
+                ]
             self._id_info.visible = True
             self._id_info.update()
 
