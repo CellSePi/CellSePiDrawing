@@ -1052,39 +1052,41 @@ class ImageEditingView(ft.Card):
             return
 
         mask = self._mask_data["masks"]
-        dimension = ""
 
 
         if mask.ndim == 3 and self._user_2_5d:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
             slice_mask = mask[self._slice_id, :, :]
-            dimension = "2.5D"
+            cell_id = _get_cell_id_from_position(pos, slice_mask)
+            print("cell_id:", cell_id)
+            cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
+                self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
+                                                                         self._channel_id, self._slice_id)
+            values =cell_value
         else:
             mask = np.transpose(mask, (1, 2, 0))
             slice_mask = mask
-            dimension = "3D"
+            cell_id = _get_cell_id_from_position(pos, slice_mask)
+            print("cell_id:", cell_id)
+            values =[]
+            for i,cellid in enumerate(cell_id):
+                if cellid !=0:
+                    cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
+                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,i)
+                    if (cell_id == cellid).sum() > 1:
+                        cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
+                    else:
+                        cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
 
-        cell_id = _get_cell_id_from_position(pos, slice_mask)
-        print("cell_id:", cell_id)
-        values =[]
-        for i,cellid in enumerate(cell_id):
-            if cellid !=0:
-                cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),dimension, self._channel_id,i)
-                if (cell_id == cellid).sum() > 1:
-                    cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
-                else:
-                    cell_id_cell = ft.DataCell(ft.Text(f"{cellid}"))
-
-                values.append(
-                    ft.DataRow(
-                        cells=[
-                            cell_id_cell,
-                            ft.DataCell(ft.Text(f"{cell_value:.2f}")),
-                        ]
+                    values.append(
+                        ft.DataRow(
+                            cells=[
+                                cell_id_cell,
+                                ft.DataCell(ft.Text(f"{cell_value:.2f}")),
+                            ]
+                        )
                     )
-                )
 
         if self._show_id_checkbox.selected:
             self._id_info.content.rows = values
