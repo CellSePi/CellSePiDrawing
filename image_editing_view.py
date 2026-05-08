@@ -103,29 +103,30 @@ class FluorescenceCache:
     def clear(self):
         self.fluorescence_cache.clear()
 
-    def get_fluorescence_value(self, cell_id, mask, np_image, channel, zslice=None):
+    def get_fluorescence_value(self, cell_id, mask, np_image, image_dim,channel, zslice=None):
         if zslice == -1:
             zslice = None
-
+        if image_dim not in self.fluorescence_cache:
+            self.fluorescence_cache[image_dim] = OrderedDict()
         if channel not in self.fluorescence_cache:
-            self.fluorescence_cache[channel] = OrderedDict()
+            self.fluorescence_cache[image_dim][channel] = OrderedDict()
         if zslice not in self.fluorescence_cache[channel]:
-            self.fluorescence_cache[channel][zslice] = OrderedDict()
+            self.fluorescence_cache[image_dim][channel][zslice] = OrderedDict()
 
-        if cell_id in self.fluorescence_cache[channel][zslice]:
-            self.fluorescence_cache[channel][zslice].move_to_end(cell_id)
-            self.fluorescence_cache[channel].move_to_end(zslice)
+        if cell_id in self.fluorescence_cache[image_dim][channel][zslice]:
+            self.fluorescence_cache[image_dim][channel][zslice].move_to_end(cell_id)
+            self.fluorescence_cache[image_dim][channel].move_to_end(zslice)
             self.fluorescence_cache.move_to_end(channel)
-            return self.fluorescence_cache[channel][zslice][cell_id]
+            return self.fluorescence_cache[image_dim][channel][zslice][cell_id]
 
-        if len(self.fluorescence_cache[channel][zslice]) > self._max_values:
-            self.fluorescence_cache[channel][zslice].popitem(last=False)
+        if len(self.fluorescence_cache[image_dim][channel][zslice]) > self._max_values:
+            self.fluorescence_cache[image_dim][channel][zslice].popitem(last=False)
 
         cell_mask = mask == cell_id
         val = float(np.mean(np_image[cell_mask]))
 
-        self.fluorescence_cache[channel][zslice][cell_id] = val
-        self.fluorescence_cache[channel][zslice].move_to_end(cell_id)
+        self.fluorescence_cache[image_dim][channel][zslice][cell_id] = val
+        self.fluorescence_cache[image_dim][channel][zslice].move_to_end(cell_id)
 
         return val
 
@@ -248,7 +249,7 @@ class ImageEditingView(ft.Card):
                 heading_row_color = ft.Colors.WHITE,
                 bgcolor=ft.Colors.BLACK54,
                 width=120,
-                column_spacing=3,
+                column_spacing=4,
 
             ),
             padding=8,
@@ -861,10 +862,20 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # delete saved fluorescence cache, if cell is deleted
-        if (self._channel_id in self._fluorescence_cache.fluorescence_cache
-                and (self._slice_id in self._fluorescence_cache.fluorescence_cache[self._channel_id] or None in self._fluorescence_cache.fluorescence_cache[self._channel_id])
-                and cell_id in self._fluorescence_cache.fluorescence_cache[self._channel_id][
-                self._slice_id if self._slice_id != -1 else None]):
+        cache_2d = self._fluorescence_cache.fluorescence_cache.get("2D", {})
+        slice_cache = cache_2d.get(self._channel_id, {})
+
+        condition = (
+                (
+                        self._slice_id in slice_cache
+                        and cell_id in slice_cache[self._slice_id]
+                )
+                or (
+                        None in slice_cache
+                        and cell_id in slice_cache[None]
+                )
+        )
+        if condition:
             self._fluorescence_cache.fluorescence_cache[self._channel_id][
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
@@ -1021,7 +1032,7 @@ class ImageEditingView(ft.Card):
         # load fluorescence value from cache
 
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,self._slice_id)
+            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"2D", self._channel_id,self._slice_id)
 
         # show id and value in canvas
         if self._show_id_checkbox.selected:
@@ -1055,7 +1066,7 @@ class ImageEditingView(ft.Card):
         for i,cellid in enumerate(cell_id):
             if cellid !=0:
                 cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), self._channel_id,
+                    self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])),"3D", self._channel_id,
                                                                              self._slice_id)
                 if (cell_id == cellid).sum() > 1:
                     cell_id_cell =ft.DataCell(ft.Text(f"{cellid}({i})"))
