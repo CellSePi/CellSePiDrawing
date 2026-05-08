@@ -3,7 +3,7 @@ name = "cellsepi-drawing"
 version = "0.1.0"
 description = "CellSePiDrawing provides the image editing view for the CellSePi project."
 readme = "README.md"
-requires-python = ">=3.10, <=3.12"
+requires-python = ">=3.10, <3.13"
 authors = [
     { name = "Florian Hock"},
     { name = "Jenna Ahlvers"}
