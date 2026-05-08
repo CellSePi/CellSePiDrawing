@@ -1057,9 +1057,6 @@ class ImageEditingView(ft.Card):
             mask = np.transpose(mask, (1, 2, 0))
 
 
-        if mask.ndim == 3 and self._user_2_5d:
-            raise ValueError("user should be in 2D mode of 3D images")
-
         cell_id = _get_cell_id_from_position(pos, mask)
         values =[]
         for i,cellid in enumerate(cell_id):
