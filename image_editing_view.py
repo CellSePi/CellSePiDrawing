@@ -614,7 +614,9 @@ class ImageEditingView(ft.Card):
         self._mask_button.disabled = True
         self._mask_button.update()
 
-    async def update_mask_image(self):
+    async def update_mask_image(self,reset=False):
+        if reset:
+            self._mask_path = None
         if self._mask_path is not None:
             await self._async_update_mask_image()
         elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in \
