@@ -910,33 +910,9 @@ class ImageEditingView(ft.Card):
             a.control.page.update()
 
         def ok_dialog(a):
-
             cupertino_alert_dialog.open = False
             a.control.page.update()
-            if self._mask_path is not None:
-                if os.path.exists(self._mask_path):
-                    os.remove(self._mask_path)
-                if self._mask_paths and self._image_id in self._mask_paths:
-                    self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
-                self._mask_path = None
-                self._mask_data = None
-                self._redo_stack.clear()
-                self._undo_stack.clear()
-                self._redo_button.disabled = True
-                self._undo_button.disabled = True
-                self._redo_button.icon_color = ft.Colors.BLACK_12
-                self._undo_button.icon_color = ft.Colors.BLACK_12
-                self._redo_button.update()
-                self._undo_button.update()
-                self._show_id_checkbox.disabled = True
-                self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
-                self._show_id_checkbox.selected = False
-                self.drawing_tool.deactivate_cell_info()
-                self._id_info.visible = False
-                self._id_info.update()
-                self._show_id_checkbox.update()
-                self.page.run_task(self.update_mask_image)
-                self.on_mask_change(self._image_id, True)
+            self.reset_mask()
 
         cupertino_alert_dialog = ft.CupertinoAlertDialog(
             title=ft.Text("Delete Entire Mask"),
@@ -1118,3 +1094,28 @@ class ImageEditingView(ft.Card):
         self._delete_mask_button.icon_color = ft.Colors.BLACK_12
         self._delete_mask_button.disabled = True
 
+    def reset_mask(self):
+        if self._mask_path is not None:
+            if os.path.exists(self._mask_path):
+                os.remove(self._mask_path)
+            if self._mask_paths and self._image_id in self._mask_paths:
+                self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
+            self._mask_path = None
+            self._mask_data = None
+            self._redo_stack.clear()
+            self._undo_stack.clear()
+            self._redo_button.disabled = True
+            self._undo_button.disabled = True
+            self._redo_button.icon_color = ft.Colors.BLACK_12
+            self._undo_button.icon_color = ft.Colors.BLACK_12
+            self._redo_button.update()
+            self._undo_button.update()
+            self._show_id_checkbox.disabled = True
+            self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
+            self._show_id_checkbox.selected = False
+            self.drawing_tool.deactivate_cell_info()
+            self._id_info.visible = False
+            self._id_info.update()
+            self._show_id_checkbox.update()
+            self.page.run_task(self.update_mask_image)
+            self.on_mask_change(self._image_id, True)
