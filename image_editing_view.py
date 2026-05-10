@@ -254,7 +254,10 @@ class ImageEditingView(ft.Card):
             ),
             padding=8,
             border_radius=10,
-            visible=False
+            visible=False,
+            right=15,
+            top=15,
+            ignore_interactions=True,
         )
 
         self._slider_2_5d = ft.Slider(
@@ -319,15 +322,10 @@ class ImageEditingView(ft.Card):
                                                                   self.drawing_tool,
                                                                   ], expand=True), expand=True)
 
-        self.content = ft.Stack([ft.Column(
-            controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True), self.control_tools],
-            spacing=0),
-                                 ft.Container(
-                                     content=self._id_info,
-                                     right=15,
-                                     top=15,
-                                     ignore_interactions=True,
-                                 )])
+        self.content = ft.Stack([
+            ft.Column(controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True), self.control_tools],spacing=0),
+            self._id_info,
+        ])
 
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
