@@ -1080,7 +1080,7 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
 
     def _handle_show_ids(self,pos:tuple):
-        if self._image_3d or self._user_2_5d:
+        if self._image_3d:
             self.show_ids_and_value_3d(pos)
         else:
             self.show_ids_and_value(pos)
