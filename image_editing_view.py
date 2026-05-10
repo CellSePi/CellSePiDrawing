@@ -400,21 +400,22 @@ class ImageEditingView(ft.Card):
     async def select_image_async(self, img_id, channel_id, seg_channel_id):
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
             await self._load_mask_image(img_id, seg_channel_id)
+            # reset undo/redo when a new image is selected
+            self._redo_stack.clear()
+            self._undo_stack.clear()
+            self._redo_button.disabled = True
+            self._undo_button.disabled = True
+            self._redo_button.icon_color = ft.Colors.BLACK_12
+            self._redo_button.disabled = True
+            self._undo_button.icon_color = ft.Colors.BLACK_12
+            self._undo_button.disabled = True
+            self._redo_button.update()
+            self._undo_button.update()
+
         self._image_id = img_id
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         self._load_main_image(img_id, channel_id)
-        # reset undo/redo when a new image is selected
-        self._redo_stack.clear()
-        self._undo_stack.clear()
-        self._redo_button.disabled = True
-        self._undo_button.disabled = True
-        self._redo_button.icon_color = ft.Colors.BLACK_12
-        self._redo_button.disabled = True
-        self._undo_button.icon_color = ft.Colors.BLACK_12
-        self._undo_button.disabled = True
-        self._redo_button.update()
-        self._undo_button.update()
 
     def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
