@@ -375,7 +375,7 @@ class ImageEditingView(ft.Card):
         self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
         self._show_id_checkbox.selected = False
         self.drawing_tool.deactivate_cell_info()
-        self._id_info.visible = True
+        self._id_info.visible = False
         self._fluorescence_cache.clear()
         self.cancel_all_tasks()
         self._edit_allowed = True
@@ -414,7 +414,7 @@ class ImageEditingView(ft.Card):
                 self.drawing_tool.deactivate_cell_info()
                 self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                 self._show_id_checkbox.update()
-                self._id_info.visible = True
+                self._id_info.visible = False
                 self._id_info.update()
             self._redo_stack.clear()
             self._undo_stack.clear()
@@ -535,7 +535,7 @@ class ImageEditingView(ft.Card):
                     self.drawing_tool.deactivate_cell_info()
                     self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
                     self._show_id_checkbox.update()
-                    self._id_info.visible = True
+                    self._id_info.visible = False
                     self._id_info.update()
 
             else:
@@ -555,7 +555,7 @@ class ImageEditingView(ft.Card):
                         else:
                             self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
                         self._show_id_checkbox.update()
-                    self._id_info.visible = True
+                    self._id_info.visible = False
                     self._id_info.update()
                     self._show_id_checkbox.update()
             self._slider_2_5d.value = 0 if shape[2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
@@ -649,7 +649,7 @@ class ImageEditingView(ft.Card):
             self.drawing_tool.deactivate_cell_info()
             self._show_id_checkbox.icon_color = ft.Colors.BLACK_12
             self._show_id_checkbox.update()
-            self._id_info.visible = True
+            self._id_info.visible = False
             self._id_info.update()
 
     async def _async_update_mask_image(self):
