@@ -255,6 +255,7 @@ class ImageEditingView(ft.Card):
             padding=8,
             border_radius=10,
             visible=False,
+            ignore_interactions=True
         )
 
         self._slider_2_5d = ft.Slider(
