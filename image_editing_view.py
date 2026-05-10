@@ -254,8 +254,7 @@ class ImageEditingView(ft.Card):
             ),
             padding=8,
             border_radius=10,
-            visible=False,
-            ignore_interactions=True
+            visible=False
         )
 
         self._slider_2_5d = ft.Slider(
@@ -327,6 +326,7 @@ class ImageEditingView(ft.Card):
                                      content=self._id_info,
                                      right=15,
                                      top=15,
+                                     ignore_interactions=True,
                                  )])
 
     def set_mask_paths(self, mask_paths: list):
