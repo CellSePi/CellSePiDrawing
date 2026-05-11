@@ -473,7 +473,7 @@ class ImageEditingView(ft.Card):
         """
         Updates the main image as base64_image with the new brightness and contrast values.
         """
-        src, shape, img_3d = await load_image(self._image_cache.get_image(path), False, self._slice_id, brightness,contrast)
+        src, shape, img_3d = await load_image(self._image_cache.get_image(path), False, self._slice_id, self.brightness,self.contrast)
         self._main_image.src = src
         self._main_image.update()
 
