@@ -172,6 +172,7 @@ class ImageEditingView(ft.Card):
         self._save_task = None
         self._image_cache = ImageCache()
         self._fluorescence_cache = FluorescenceCache()
+        self._running_tasks = set()
         self.brightness = 1.0
         self.contrast = 1.0
         self.auto_adjust = False
@@ -375,6 +376,7 @@ class ImageEditingView(ft.Card):
         self.drawing_tool.deactivate_cell_info()
         self._id_info.visible = False
         self._fluorescence_cache.clear()
+        self.cancel_all_tasks()
         self._edit_allowed = True
         self._delete_mask_button.icon_color = ft.Colors.WHITE_60
         self._delete_mask_button.disabled = False
@@ -469,16 +471,38 @@ class ImageEditingView(ft.Card):
                 self._redo_button.update()
                 self._undo_button.update()
 
-    async def update_main_image_with_brightness_contrast(self, path):
+    def cancel_all_tasks(self):
+        for task in self._running_tasks:
+            task.cancel()
+        self._running_tasks.clear()
+
+    async def _adjust_image_async(self, path, brightness, contrast):
+        return await asyncio.to_thread(load_image, self._image_cache.get_image(path), False, self._slice_id, brightness,
+                                       contrast)
+
+    async def _update_main_image(self, path):
         """
         Updates the main image as base64_image with the new brightness and contrast values.
         """
-        src, shape, img_3d = load_image(self._image_cache.get_image(path), False, self._slice_id, self.brightness,self.contrast)
+        src, shape, img_3d = await self._adjust_image_async(path,
+                                                            self.brightness,
+                                                            self.contrast
+                                                            )
         self._main_image.src = src
         self._main_image.update()
 
+    async def update_main_image_with_brightness_contrast(self, path):
+        task = asyncio.create_task(self._update_main_image(path))
+        self._running_tasks.add(task)
+        try:
+            await task
+        except asyncio.CancelledError:
+            return
+        finally:
+            self._running_tasks.discard(task)
 
     def _load_main_image_with_path(self, path):
+        self.cancel_all_tasks()
         src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust,
                                         get_slice=self._slice_id, brightness=self.brightness, contrast=self.contrast)
         self._main_image.src = src
