@@ -19,6 +19,16 @@ from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 
 def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
     shape = list(image.shape)
+
+    if image.dtype == np.uint16:
+        #16bit case
+        max_val = 65535
+        mid_val = 32767
+    else:
+        #8bit case
+        max_val = 255
+        mid_val = 127
+
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
@@ -27,21 +37,13 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=2)
 
     if auto_adjust:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX)
     elif brightness != 1.0 or contrast != 1.0:
-        img = Image.fromarray(image)
-        if brightness != 1.0:
-            enhancer = ImageEnhance.Brightness(img)
-            img = enhancer.enhance(brightness)
-        if contrast != 1.0:
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(contrast)
+        alpha = brightness * contrast
+        beta = mid_val * (1 - contrast)
 
-        buffer = BytesIO()
-        img.save(buffer, format="PNG", compress_level=1)
-        buffer.seek(0)
-        return base64.b64encode(buffer.getvalue()).decode('utf-8'), shape, check
+        adjusted = image.astype(np.float32) * alpha + beta
+        image = np.clip(adjusted, 0, max_val).astype(image.dtype)
 
     _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
 
