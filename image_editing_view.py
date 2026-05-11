@@ -23,11 +23,9 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         #16bit case
         max_val = 65535
-        mid_val = 32767
     else:
         #8bit case
         max_val = 255
-        mid_val = 127
 
     check = image.ndim == 3
     if check:
