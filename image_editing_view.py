@@ -30,9 +30,9 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
-            image = image[:, :, get_slice]
+            image = image[get_slice, :, :]
         else:
-            image = np.max(image, axis=2)
+            image = np.max(image, axis=0)
 
     if auto_adjust:
         image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX)
