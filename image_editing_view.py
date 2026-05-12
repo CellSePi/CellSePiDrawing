@@ -511,9 +511,9 @@ class ImageEditingView(ft.Card):
                                         get_slice=self._slice_id, brightness=self.brightness, contrast=self.contrast)
         self._main_image.src = src
         self._main_image.visible = True
-        self.drawing_tool.set_bounds(shape[2], shape[1])
         self._main_image.update()
         if img_3d:
+            self.drawing_tool.set_bounds(shape[1], shape[2])
             self._image_3d = True
             if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
                 if self._edit_button.disabled:
@@ -566,6 +566,7 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
         else:
+            self.drawing_tool.set_bounds(shape[0], shape[1])
             self._image_3d = False
             if self._edit_allowed:
                 if self._edit_button.disabled:
