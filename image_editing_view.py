@@ -100,7 +100,7 @@ def _get_cell_id_from_position(position, mask):
 
 
 class FluorescenceCache:
-    def __init__(self, max_values=30):
+    def __init__(self, max_values=20):
         self.fluorescence_cache = OrderedDict()
         self._max_values = max_values
 
@@ -112,7 +112,7 @@ class FluorescenceCache:
             zslice = None
         if image_dim not in self.fluorescence_cache:
             self.fluorescence_cache[image_dim] = OrderedDict()
-        if channel not in self.fluorescence_cache:
+        if channel not in self.fluorescence_cache[image_dim]:
             self.fluorescence_cache[image_dim][channel] = OrderedDict()
         if zslice not in self.fluorescence_cache[image_dim][channel]:
             self.fluorescence_cache[image_dim][channel][zslice] = OrderedDict()
@@ -725,6 +725,9 @@ class ImageEditingView(ft.Card):
 
         data_to_pass = lines_data.copy()
 
+
+       #self.page.run_task(self._async_draw_cell_3D, data_to_pass)
+
         self.page.run_task(self._async_cell_drawn, data_to_pass)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
@@ -819,6 +822,188 @@ class ImageEditingView(ft.Card):
                 outline_3d[self._slice_id, :, :] = outline
         self._mask_data = {"masks": mask if self._slice_id == -1 else mask_3d,
                            "outlines": outline if self._slice_id == -1 else outline_3d}
+        await self.update_mask_image()
+        if not self._mask_image.visible:
+            self._mask_image.visible = True
+            self._mask_image.update()
+            self._mask_button.icon_color = ft.Colors.WHITE
+            self._mask_button.disabled = False
+            self._mask_button.tooltip = "Hide mask"
+            self._mask_button.update()
+            self._show_id_checkbox.disabled = False
+            if self._show_id_checkbox.selected:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE
+            else:
+                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
+            self._show_id_checkbox.update()
+
+        self._trigger_background_save()
+        self.on_mask_change(self._image_id, is_new_mask)
+
+    async def _async_draw_cell_3D(self,lines_data: list | np.ndarray):
+        # update the mask data
+        # gets the pixels that build the lines of the drawn cell
+
+        is_new_mask = False
+        if self._mask_path is None:  # currently no mask is given
+            if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
+                                                                                                                       self._main_paths[
+                                                                                                                           self._image_id]:
+                return
+            is_new_mask = True
+            image_path = self._main_paths[self._image_id][self._seg_channel_id]
+            directory, filename = os.path.split(image_path)
+            name, _ = os.path.splitext(filename)
+            mask_file_name = f"{name}{self.mask_suffix}.npy"
+            self._mask_path = os.path.join(directory, mask_file_name)
+            if self._image_id not in self._mask_paths:
+                self._mask_paths[self._image_id] = {}
+            self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
+            image_width, image_height = self.drawing_tool.get_bounds()
+            if not self._image_3d:
+                # 2D Case
+                self._mask_data = {
+                    "masks": np.zeros((image_height, image_width), dtype=np.uint16),
+                    "outlines": np.zeros((image_height, image_width), dtype=np.uint16)
+                }
+            else:
+                # 3D-Image Case (with Z-Slices)
+                self._mask_data = {
+                    "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16),
+                    "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
+                }
+
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
+
+        mask_3d = mask if mask.ndim == 3 else None
+        outline_3d = outline if outline.ndim == 3 else None
+
+        draw_on_all_slices = (
+                self._image_3d and
+                self._slice_id == -1
+        )
+
+
+        if mask.ndim == 3 and not draw_on_all_slices:
+            if self._slice_id < 0:
+                raise ValueError("slice_id should be non-negative")
+            mask = np.take(mask, self._slice_id, axis=0)
+
+        if outline.ndim == 3 and not draw_on_all_slices:
+            if self._slice_id < 0:
+                raise ValueError("slice_id should be non-negative")
+            outline = np.take(outline, self._slice_id, axis=0)
+
+        if draw_on_all_slices:
+            mask = mask_3d[0]
+            outline = outline_3d[0]
+
+        free_id = await asyncio.to_thread(search_free_id, mask,
+                                          outline)  # search for the next free id in mask and outline
+
+        # add action to undo stack to be able to delete the cell afterward
+        self._undo_stack.append(("delete_action", free_id))
+        self._undo_button.icon_color = ft.Colors.WHITE_60
+        self._undo_button.disabled = False
+        self._undo_button.update()
+
+        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
+        # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
+        if type(lines_data) is list:
+            pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
+            cv2.fillPoly(temp_mask_cell, [pts], 1)
+
+        else:
+            border_mask = (lines_data > 0).astype(np.uint8)
+            contours, _ = cv2.findContours(border_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(temp_mask_cell, contours, -1, 1, thickness=cv2.FILLED)
+
+        kernel = np.array(
+            [[0, 1, 0],
+             [1, 1, 1],
+             [0, 1, 0]],
+            dtype=np.uint8
+        )
+
+        inner_pixels = cv2.erode(temp_mask_cell, kernel)
+
+        outline_mask = (
+                (temp_mask_cell == 1) &
+                (inner_pixels == 0)
+        )
+
+        fill_mask = (
+                (temp_mask_cell == 1) &
+                (~outline_mask)
+        )
+
+        if draw_on_all_slices:
+
+            for z in range(mask_3d.shape[0]):
+                current_mask = mask_3d[z]
+                current_outline = outline_3d[z]
+
+                valid_fill = (
+                        fill_mask &
+                        (current_mask == 0) &
+                        (current_outline == 0)
+                )
+
+                valid_outline = (
+                        outline_mask &
+                        (current_mask == 0) &
+                        (current_outline == 0)
+                )
+
+                current_mask[valid_fill] = free_id
+                current_outline[valid_outline] = free_id
+
+        else:
+
+            valid_area = (
+                    (temp_mask_cell == 1) &
+                    (mask == 0) &
+                    (outline == 0)
+            )
+
+            mask[valid_area] = free_id
+
+            current_cell_full = (mask == free_id).astype(np.uint8)
+
+            inner_pixels = cv2.erode(current_cell_full, kernel)
+
+            new_outline_mask = (
+                    (current_cell_full == 1) &
+                    (inner_pixels == 0)
+            )
+
+            mask[new_outline_mask] = 0
+            outline[new_outline_mask] = free_id
+
+        if draw_on_all_slices:
+            self._mask_data = {
+                "masks": mask_3d,
+                "outlines": outline_3d
+            }
+
+        elif self._image_3d:
+
+            mask_3d[self._slice_id] = mask
+            outline_3d[self._slice_id] = outline
+
+            self._mask_data = {
+                "masks": mask_3d,
+                "outlines": outline_3d
+            }
+
+        else:
+
+            self._mask_data = {
+                "masks": mask,
+                "outlines": outline
+            }
+
         await self.update_mask_image()
         if not self._mask_image.visible:
             self._mask_image.visible = True
