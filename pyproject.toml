@@ -9,7 +9,7 @@ authors = [
     { name = "Jenna Ahlvers"}
 ]
 dependencies = [
-    "flet>=0.84.0",
+    "flet==0.84.0",
     "pillow==12.2.0",
     "tifffile>=2026.3.3",
     "numpy==2.1.0",
