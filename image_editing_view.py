@@ -511,7 +511,7 @@ class ImageEditingView(ft.Card):
                                         get_slice=self._slice_id, brightness=self.brightness, contrast=self.contrast)
         self._main_image.src = src
         self._main_image.visible = True
-        self.drawing_tool.set_bounds(shape[1], shape[0])
+        self.drawing_tool.set_bounds(shape[2], shape[1])
         self._main_image.update()
         if img_3d:
             self._image_3d = True
@@ -560,9 +560,9 @@ class ImageEditingView(ft.Card):
                     self._id_info.visible = False
                     self._id_info.update()
                     self._show_id_checkbox.update()
-            self._slider_2_5d.value = 0 if shape[2] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
-            self._slider_2_5d.max = shape[2] - 1
-            self._slider_2_5d.divisions = shape[2] - 1
+            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
+            self._slider_2_5d.max = shape[0] - 1
+            self._slider_2_5d.divisions = shape[0] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
         else:
