@@ -884,7 +884,7 @@ class ImageEditingView(ft.Card):
                 )
         )
         if condition:
-            self._fluorescence_cache.fluorescence_cache[self._channel_id][
+            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # Update the mask and outline (delete the cell)
