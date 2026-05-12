@@ -93,8 +93,8 @@ def _get_cell_id_from_position(position, mask):
     """
     Get the cell ID from the clicked position.
     """
-    x, y = int(position[0]), int(position[1])
-    if 0 <= x < mask.shape[1] and 0 <= y < mask.shape[0]:
+    y, x = int(position[0]), int(position[1]) #in drawing tool x,y in oure image y,x
+    if 0 <= y < mask.shape[1] and 0 <= x < mask.shape[0]:
         return mask[y, x]
     return None
 
@@ -184,7 +184,7 @@ class ImageEditingView(ft.Card):
         self.outline_color = (0, 255, 0)
         self.mask_opacity = 128
         self._user_2_5d = False
-        self.on_mask_change = on_mask_change or (lambda x, y: None)
+        self.on_mask_change = on_mask_change or (lambda y, x: None)
         self.mask_suffix = "_seg"
         self.expand = True
         self._redo_stack = []
