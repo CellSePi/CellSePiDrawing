@@ -263,6 +263,7 @@ class ImageEditingView(ft.Card):
             ignore_interactions=True,
         )
 
+
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}", value=0,
             opacity=1.0 if self._user_2_5d else 0.0, height=20, width=170,
@@ -840,6 +841,7 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self._async_delete_cell, pos)
 
     async def _async_delete_cell(self, pos: tuple | int):
+        image_dim ="2D"
 
         # delete the cell in the mask data
         if self._mask_path is None:
@@ -852,6 +854,7 @@ class ImageEditingView(ft.Card):
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
             mask = mask[self._slice_id, :, :]
+            image_dim="2.5D"
 
         if outline.ndim == 3:
             if self._slice_id < 0:
@@ -867,7 +870,7 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         # delete saved fluorescence cache, if cell is deleted
-        cache_2d = self._fluorescence_cache.fluorescence_cache.get("2D", {})
+        cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
         slice_cache = cache_2d.get(self._channel_id, {})
 
         condition = (
