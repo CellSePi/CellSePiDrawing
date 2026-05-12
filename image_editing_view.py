@@ -274,7 +274,7 @@ class ImageEditingView(ft.Card):
             selected_index=0 if not self._user_2_5d else 1,
             thumb_color=ft.Colors.WHITE,
             bgcolor=ft.Colors.WHITE60,
-            padding=ft.padding.symmetric(0, 0),
+            padding=ft.Padding.symmetric(vertical=0,horizontal=0),
             controls=[
                 ft.Text("2D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
                 ft.Text("2.5D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD)
