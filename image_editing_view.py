@@ -93,8 +93,8 @@ def _get_cell_id_from_position(position, mask):
     """
     Get the cell ID from the clicked position.
     """
-    y, x = int(position[0]), int(position[1]) #in drawing tool x,y in oure image y,x
-    if 0 <= y < mask.shape[1] and 0 <= x < mask.shape[0]:
+    x, y = int(position[0]), int(position[1])
+    if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1]:
         return mask[y, x]
     return None
 
@@ -1037,7 +1037,6 @@ class ImageEditingView(ft.Card):
                 self._id_info.visible = False
                 self._id_info.update()
                 return
-            mask = np.transpose(mask, (1, 2, 0))
 
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
                 self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
@@ -1049,7 +1048,6 @@ class ImageEditingView(ft.Card):
                 ]
             )]
         else:
-            mask = np.transpose(mask, (1, 2, 0))
             cell_id = _get_cell_id_from_position(pos, mask)
 
             cell_id = np.unique(cell_id)
