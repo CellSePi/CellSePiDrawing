@@ -94,12 +94,14 @@ def _get_cell_id_from_position(position, mask):
     Get the cell ID from the clicked position.
     """
     x, y = int(position[0]), int(position[1])
-    if 0 <= y < mask.shape[1] and 0 <= x < mask.shape[2]:
-        if mask.ndim ==3 :
+    if mask.ndim == 3:
+        if 0 <= y < mask.shape[1] and 0 <= x < mask.shape[2]:
             return mask[:,y, x]
-        else:
+        return None
+    else:
+        if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1]:
             return mask[y, x]
-    return None
+        return None
 
 
 class FluorescenceCache:
