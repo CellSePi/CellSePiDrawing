@@ -148,7 +148,7 @@ class ImageCache:
         else:
             image = tifffile.imread(path)
             if image.ndim == 3:
-                image.transpose(2,0,1)
+                image.transpose(1,2,0)
             self.add_image(path, image)
             return image
 
