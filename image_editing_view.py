@@ -1242,7 +1242,6 @@ class ImageEditingView(ft.Card):
 
             cell_id = np.unique(cell_id)
             values = []
-            mask = np.transpose(mask,(2,1,0))
             for cellid in cell_id:
                 if cellid != 0:
                     cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
