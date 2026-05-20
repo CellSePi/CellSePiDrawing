@@ -37,7 +37,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=0)
 
     if auto_adjust:
-        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX,dtype=cv_target_dtyp)
+        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX,dtype=cv_target_dtype)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
