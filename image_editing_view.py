@@ -23,9 +23,11 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         #16bit case
         max_val = 65535
+        cv_target_dtype = cv2.CV_16U
     else:
         #8bit case
         max_val = 255
+        cv_target_dtype = cv2.CV_8U
 
     check = image.ndim == 3
     if check:
@@ -35,7 +37,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=0)
 
     if auto_adjust:
-        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX)
+        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX,dtype=cv_target_dtyp)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
@@ -44,8 +46,10 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
         alpha = brightness * contrast
         beta = mid_val * (1 - contrast)
 
-        adjusted = image.astype(np.float32) * alpha + beta
-        image = np.clip(adjusted, 0, max_val).astype(image.dtype)
+        image = cv2.addWeighted(image, alpha, image, 0, beta, dtype=cv_target_dtype)
+
+    if image.dtype == np.uint8:
+        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
 
