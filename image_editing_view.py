@@ -48,7 +48,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
 
         image = cv2.addWeighted(image, alpha, image, 0, beta, dtype=cv_target_dtype)
 
-    if image.dtype == np.uint8:
+    if image.dtype == np.uint16:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
