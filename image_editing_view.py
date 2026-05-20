@@ -146,7 +146,7 @@ class FluorescenceCache:
 
 
 class ImageCache:
-    def __init__(self, max_images=10):
+    def __init__(self, max_images=5):
         self.cache = OrderedDict()
         self._max_images = max_images
 
