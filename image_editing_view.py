@@ -200,9 +200,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack = []
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True)
+                                    expand=True,left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True)
+                                    expand=True,left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
