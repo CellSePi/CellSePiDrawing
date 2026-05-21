@@ -547,10 +547,10 @@ class ImageEditingView(ft.Card):
                     self._id_info.update()
 
             else:
-                self._edit_button.icon_color = ft.Colors.BLACK12
-                self._edit_button.disabled = True
-                self._edit_button.update()
-                self.drawing_tool.deactivate_drawing()
+                #self._edit_button.icon_color = ft.Colors.BLACK12
+                #self._edit_button.disabled = True
+                #self._edit_button.update()
+                #self.drawing_tool.deactivate_drawing()
                 self._delete_button.icon_color = ft.Colors.BLACK_12
                 self._delete_button.disabled = True
                 self._delete_button.update()
@@ -731,9 +731,9 @@ class ImageEditingView(ft.Card):
         data_to_pass = lines_data.copy()
 
 
-       #self.page.run_task(self._async_draw_cell_3D, data_to_pass)
+        self.page.run_task(self._async_draw_cell_3D, data_to_pass)
 
-        self.page.run_task(self._async_cell_drawn, data_to_pass)
+        #self.page.run_task(self._async_cell_drawn, data_to_pass)
 
     async def _async_cell_drawn(self, lines_data: list | np.ndarray):
         # update the mask data
