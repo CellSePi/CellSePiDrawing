@@ -595,6 +595,15 @@ class ImageEditingView(ft.Card):
                     self._delete_button.icon_color = ft.Colors.WHITE60
                     self._delete_button.disabled = False
                     self._delete_button.update()
+            else:
+                self._edit_button.icon_color = ft.Colors.BLACK_12
+                self._edit_button.disabled = True
+                self._edit_button.update()
+                self.drawing_tool.deactivate_drawing()
+                self._delete_button.icon_color = ft.Colors.BLACK_12
+                self._delete_button.disabled = True
+                self._delete_button.update()
+                self.drawing_tool.deactivate_delete()
             self._slider_2_5d.value = 0
             self._slice_id = 0
             self._slider_2_5d.max = 1
