@@ -551,9 +551,9 @@ class ImageEditingView(ft.Card):
                     self._id_info.update()
 
             else:
-                #self._edit_button.icon_color = ft.Colors.BLACK12
-                #self._edit_button.disabled = True
-                #self._edit_button.update()
+                self._edit_button.icon_color = ft.Colors.WHITE_60
+                self._edit_button.disabled = False
+                self._edit_button.update()
                 #self.drawing_tool.deactivate_drawing()
                 self._delete_button.icon_color = ft.Colors.BLACK_12
                 self._delete_button.disabled = True
