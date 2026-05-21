@@ -555,10 +555,10 @@ class ImageEditingView(ft.Card):
                 self._edit_button.disabled = False
                 self._edit_button.update()
                 #self.drawing_tool.deactivate_drawing()
-                self._delete_button.icon_color = ft.Colors.BLACK_12
-                self._delete_button.disabled = True
+                self._delete_button.icon_color = ft.Colors.WHITE_60
+                self._delete_button.disabled = False
                 self._delete_button.update()
-                self.drawing_tool.deactivate_delete()
+                #self.drawing_tool.deactivate_delete()
                 if self._slider_2_5d.opacity != 1.0:
                     if not self._mask_button.disabled:
                         self._show_id_checkbox.disabled = False
@@ -1032,7 +1032,8 @@ class ImageEditingView(ft.Card):
         self.on_mask_change(self._image_id, is_new_mask)
 
     def _delete_cell(self, pos: tuple | int):
-        self.page.run_task(self._async_delete_cell, pos)
+        #self.page.run_task(self._async_delete_cell, pos)
+        self.page.run_task(self._async_delete_cell_3D, pos)
 
     async def _async_delete_cell(self, pos: tuple | int):
         image_dim ="2D"
@@ -1101,6 +1102,90 @@ class ImageEditingView(ft.Card):
         self._trigger_background_save()
         self.on_mask_change(self._image_id, False)
 
+    async def _async_delete_cell_3D(self, pos: tuple | int):
+        # delete the cell in the mask data
+        if self._mask_path is None:
+            return
+
+        mask = self._mask_data["masks"]
+        outline = self._mask_data["outlines"]
+
+        delete_cell_on_all_slices = (
+                self._image_3d and
+                self._slice_id == -1
+        )
+
+        image_dim = "3D" if delete_cell_on_all_slices else ("2D" if not self._image_3d else "2.5D")
+
+        if mask.ndim == 3 and not delete_cell_on_all_slices:
+            if self._slice_id < 0:
+                raise ValueError("slice_id should be non-negative")
+            mask = mask[self._slice_id, :, :]
+
+        if outline.ndim == 3 and not delete_cell_on_all_slices:
+            if self._slice_id < 0:
+                raise ValueError("slice_id should be non-negative")
+            outline = outline[self._slice_id, :, :]
+
+        cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
+
+        if not cell_id:
+            cell_id_outline = _get_cell_id_from_position(pos, outline)
+            if not cell_id_outline:
+                return
+            cell_id = cell_id_outline
+
+        # delete saved fluorescence cache, if cell is deleted
+        cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
+        slice_cache = cache_2d.get(self._channel_id, {})
+
+        condition = (
+                (
+                        self._slice_id in slice_cache
+                        and cell_id in slice_cache[self._slice_id]
+                )
+                or (
+                        None in slice_cache
+                        and cell_id in slice_cache[None]
+                )
+        )
+        if condition:
+            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
+                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+
+        # Update the mask and outline (delete the cell)
+        if delete_cell_on_all_slices:
+            for image_slice in range(mask.shape[0]):
+                current_mask =mask[image_slice]
+                current_outline =outline[image_slice]
+
+                cell_mask = ( current_mask == cell_id)
+                cell_outline = (current_outline == cell_id)
+
+                current_mask[cell_mask] = 0
+                current_outline[cell_outline] = 0
+        else:
+            cell_mask = (mask == cell_id)
+            cell_outline = (outline == cell_id)
+
+            mask[cell_mask] = 0
+            outline[cell_outline] = 0
+
+        # add line data to the undo stack to draw the cell later out of the line
+        self._undo_stack.append(("draw_action", cell_outline.copy()))
+        self._undo_button.icon_color = ft.Colors.WHITE_60
+        self._undo_button.disabled = False
+        self._undo_button.update()
+        # ------
+
+        if self._shifting_check_box.selected:
+            await asyncio.to_thread(mask_shifting, self._mask_data, cell_id, self._slice_id)
+            self._fluorescence_cache.clear()
+
+        await self.update_mask_image()
+        self._trigger_background_save()
+        self.on_mask_change(self._image_id, False)
+
     def _trigger_background_save(self):
         if self._save_task and not self._save_task.done():
             self._save_task.cancel()
@@ -1148,7 +1233,7 @@ class ImageEditingView(ft.Card):
         if first_list_item[0] == "delete_action":
             await self._async_delete_cell(first_list_item[1])
         elif first_list_item[0] == "draw_action":
-            await self._async_cell_drawn(first_list_item[1])
+            await self._async_draw_cell_3D(first_list_item[1])
         else:
             raise KeyError("no valid action for redo button")
 
@@ -1172,7 +1257,7 @@ class ImageEditingView(ft.Card):
         if first_list_item[0] == "delete_action":
             await self._async_delete_cell(first_list_item[1])
         elif first_list_item[0] == "draw_action":
-            await self._async_cell_drawn(first_list_item[1])
+            await self._async_draw_cell_3D(first_list_item[1])
         else:
             raise KeyError("no valid action for undo button")
 
