@@ -1129,9 +1129,9 @@ class ImageEditingView(ft.Card):
 
         cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
 
-        if not cell_id:
+        if cell_id is None:
             cell_id_outline = _get_cell_id_from_position(pos, outline)
-            if not cell_id_outline:
+            if cell_id_outline is None:
                 return
             cell_id = cell_id_outline
 
@@ -1155,11 +1155,14 @@ class ImageEditingView(ft.Card):
 
         # Update the mask and outline (delete the cell)
         if delete_cell_on_all_slices:
+            cell_id = np.unique(cell_id)
+            cell_id = next((x for x in cell_id if x != 0), None)
+
             for image_slice in range(mask.shape[0]):
                 current_mask =mask[image_slice]
                 current_outline =outline[image_slice]
 
-                cell_mask = ( current_mask == cell_id)
+                cell_mask = ( current_mask == cell_id )
                 cell_outline = (current_outline == cell_id)
 
                 current_mask[cell_mask] = 0
