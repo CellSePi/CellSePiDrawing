@@ -525,7 +525,7 @@ class ImageEditingView(ft.Card):
         if img_3d:
             self.drawing_tool.set_bounds(shape[2], shape[1])
             self._image_3d = True
-            if self._slider_2_5d.opacity == 1.0 and self._edit_allowed:
+            if self._slider_2_5d.opacity == 1.0 and self.check_edit_allowed():
                 if self._edit_button.disabled:
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
@@ -551,14 +551,22 @@ class ImageEditingView(ft.Card):
                     self._id_info.update()
 
             else:
-                self._edit_button.icon_color = ft.Colors.WHITE_60
-                self._edit_button.disabled = False
-                self._edit_button.update()
-                #self.drawing_tool.deactivate_drawing()
-                self._delete_button.icon_color = ft.Colors.WHITE_60
-                self._delete_button.disabled = False
-                self._delete_button.update()
-                #self.drawing_tool.deactivate_delete()
+                if self.check_edit_allowed():
+                    self._edit_button.icon_color = ft.Colors.WHITE_60
+                    self._edit_button.disabled = False
+                    self._edit_button.update()
+                    self._delete_button.icon_color = ft.Colors.WHITE_60
+                    self._delete_button.disabled = False
+                    self._delete_button.update()
+                else:
+                    self._edit_button.icon_color = ft.Colors.BLACK_12
+                    self._edit_button.disabled = True
+                    self._edit_button.update()
+                    self.drawing_tool.deactivate_drawing()
+                    self._delete_button.icon_color = ft.Colors.BLACK_12
+                    self._delete_button.disabled = True
+                    self._delete_button.update()
+                    self.drawing_tool.deactivate_delete()
                 if self._slider_2_5d.opacity != 1.0:
                     if not self._mask_button.disabled:
                         self._show_id_checkbox.disabled = False
@@ -578,7 +586,7 @@ class ImageEditingView(ft.Card):
         else:
             self.drawing_tool.set_bounds(shape[1], shape[0])
             self._image_3d = False
-            if self._edit_allowed:
+            if self.check_edit_allowed():
                 if self._edit_button.disabled:
                     self._edit_button.icon_color = ft.Colors.WHITE60
                     self._edit_button.disabled = False
@@ -1413,3 +1421,9 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
             self.page.run_task(self.update_mask_image)
             self.on_mask_change(self._image_id, True)
+
+    def check_edit_allowed(self):
+        if self._edit_allowed and not(self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]):
+            return True
+        else:
+            return False
