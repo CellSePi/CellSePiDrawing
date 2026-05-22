@@ -263,7 +263,7 @@ class ImageEditingView(ft.Card):
                 border_radius=10,
                 bgcolor=ft.Colors.BLACK_26,
                 width=120,
-                column_spacing=4,
+                column_spacing=8,
 
             ),
             border_radius=10,
