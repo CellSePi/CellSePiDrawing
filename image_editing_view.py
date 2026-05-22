@@ -985,6 +985,38 @@ class ImageEditingView(ft.Card):
                 current_mask[valid_fill] = free_id
                 current_outline[valid_outline] = free_id
 
+                # refill the border if deleted in 3D mode
+                affected_ids = np.unique(
+                    current_outline[temp_mask_cell == 1]
+                )
+
+                affected_ids = affected_ids[affected_ids != 0]
+                affected_ids = affected_ids[affected_ids != free_id]
+
+                for cid in affected_ids:
+                    cell = (
+                            (current_mask == cid) |
+                            (current_outline == cid)
+                    ).astype(np.uint8)
+
+                    current_mask[cell == 1] = 0
+                    current_outline[cell == 1] = 0
+
+                    inner = cv2.erode(cell, kernel)
+
+                    new_outline = (
+                            (cell == 1) &
+                            (inner == 0)
+                    )
+
+                    new_fill = (
+                            (cell == 1) &
+                            (~new_outline)
+                    )
+
+                    current_mask[new_fill] = cid
+                    current_outline[new_outline] = cid
+
         else:
 
             valid_area = (
