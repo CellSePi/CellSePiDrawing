@@ -248,7 +248,7 @@ class ImageEditingView(ft.Card):
             selected=False,
             disabled=True,
             on_click=self._toggle_cell_info,
-            tooltip="By hovering over the image: Show ids and values of the cell"
+            tooltip="By hovering over the image: Show ids and values of the cells."
         )
         self._id_info = ft.Container(
             content=ft.DataTable(
@@ -299,7 +299,7 @@ class ImageEditingView(ft.Card):
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=self._toggle_shifting,
-            tooltip="Shifting IDs: OFF \n(Deleted masks will leave gaps in the order of the IDs. No shifting will occur.)"
+            tooltip="Shifting IDs: OFF \nDeleted masks will leave gaps in the ID sequence. No shifting will occur."
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
             [self._undo_button,
@@ -729,9 +729,9 @@ class ImageEditingView(ft.Card):
     async def _toggle_shifting(self, e):
         e.control.selected = not e.control.selected
         if e.control.selected:
-            e.control.tooltip = "Shifting IDs: ON \n(Shifts the IDs when a mask is deleted to restore an order without gaps.)"
+            e.control.tooltip = "Shifting IDs: ON \nShifts the IDs when a mask is deleted to restore a continuous order without gaps."
         else:
-            e.control.tooltip = "Shifting IDs: OFF \n(Deleted masks will leave gaps in the order of the IDs. No shifting will occur.)"
+            e.control.tooltip = "Shifting IDs: OFF \nDeleted masks will leave gaps in the ID sequence. No shifting will occur."
 
         e.control.update()
 
@@ -803,9 +803,9 @@ class ImageEditingView(ft.Card):
             outline = np.take(outline, self._slice_id, axis=0)
 
         free_id = await asyncio.to_thread(search_free_id, mask,
-                                          outline)  # search for the next free id in mask and outline
-        # add action to undo stack to be able to delete the cell afterward
+                                          outline, self.slice_id)  # search for the next free id in mask and outline
 
+        # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
         self._undo_button.icon_color = ft.Colors.WHITE_60
         self._undo_button.disabled = False

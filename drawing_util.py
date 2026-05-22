@@ -48,7 +48,7 @@ def mask_shifting(mask_data,deleted_mask_id:int,slice_id:int|None = None):
     else:
         outline[outline>deleted_mask_id] -= 1
 
-def search_free_id(mask,outline):
+def search_free_id(mask,outline, slice_id):
     """
     Search in a NumPy array of integers (e.g., [1,1,2,2,3,4,5,5,7,7]) for the first missing number (in this case, 6).
     If no gap is found, return the highest value + 1.
@@ -57,6 +57,9 @@ def search_free_id(mask,outline):
     max_val = max(mask.max(), outline.max())
     if max_val == 0:
         return 1
+
+    if mask.ndim == 3 and slice_id <0:
+        return int(max_val + 1)
 
     counts = np.bincount(mask.ravel(), minlength=max_val + 1)
     counts += np.bincount(outline.ravel(), minlength=max_val + 1)
