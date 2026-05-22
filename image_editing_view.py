@@ -1152,24 +1152,6 @@ class ImageEditingView(ft.Card):
                 return
             cell_id = cell_id_outline
 
-        # delete saved fluorescence cache, if cell is deleted
-        cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
-        slice_cache = cache_2d.get(self._channel_id, {})
-
-        condition = (
-                (
-                        self._slice_id in slice_cache
-                        and cell_id in slice_cache[self._slice_id]
-                )
-                or (
-                        None in slice_cache
-                        and cell_id in slice_cache[None]
-                )
-        )
-        if condition:
-            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
-                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
-
         # Update the mask and outline (delete the cell)
         if delete_cell_on_all_slices:
             cell_id = np.unique(cell_id)
@@ -1190,6 +1172,25 @@ class ImageEditingView(ft.Card):
 
             mask[cell_mask] = 0
             outline[cell_outline] = 0
+
+        # delete saved fluorescence cache, if cell is deleted
+        cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
+        slice_cache = cache_2d.get(self._channel_id, {})
+
+        print("cellid:",cell_id)
+        condition = (
+                (
+                        self._slice_id in slice_cache
+                        and cell_id in slice_cache[self._slice_id]
+                )
+                or (
+                        None in slice_cache
+                        and cell_id in slice_cache[None]
+                )
+        )
+        if condition:
+            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
+                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # add line data to the undo stack to draw the cell later out of the line
         self._undo_stack.append(("draw_action", cell_outline.copy()))
@@ -1256,7 +1257,7 @@ class ImageEditingView(ft.Card):
         first_list_item = self._redo_stack.pop()
 
         if first_list_item[0] == "delete_action":
-            await self._async_delete_cell(first_list_item[1])
+            await self._async_delete_cell_3D(first_list_item[1])
         elif first_list_item[0] == "draw_action":
             await self._async_draw_cell_3D(first_list_item[1])
         else:
@@ -1280,7 +1281,7 @@ class ImageEditingView(ft.Card):
         self._redo_button.update()
         first_list_item = self._undo_stack.pop()
         if first_list_item[0] == "delete_action":
-            await self._async_delete_cell(first_list_item[1])
+            await self._async_delete_cell_3D(first_list_item[1])
         elif first_list_item[0] == "draw_action":
             await self._async_draw_cell_3D(first_list_item[1])
         else:
