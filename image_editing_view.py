@@ -1257,7 +1257,10 @@ class ImageEditingView(ft.Card):
         if self._save_lock is None:
             self._save_lock = asyncio.Lock()
 
-        data_copy = copy.deepcopy(current_data)
+        data_copy = {
+            "masks": current_data["masks"].copy(),
+            "outlines": current_data["outlines"].copy()
+        }
 
         async with self._save_lock:
             await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
