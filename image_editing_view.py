@@ -1250,19 +1250,17 @@ class ImageEditingView(ft.Card):
         current_data = self._mask_data
         self.page.run_task(self._save_async,current_path,current_data)
 
-    def _save_async(self,current_path,current_data):
+    async def _save_async(self,current_path,current_data):
         if current_path is None or current_data is None:
             return
 
         if self._save_lock is None:
             self._save_lock = asyncio.Lock()
 
-        data_copy = copy.deepcopy(current_data)
-        async def save():
-            async with self._save_lock:
-                await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+        ddata_copy = copy.deepcopy(current_data)
 
-        asyncio.run(save())
+        async with self._save_lock:
+            await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
 
     def delete_mask(self):
         def cancel_dialog(a):
