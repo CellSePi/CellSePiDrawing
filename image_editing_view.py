@@ -182,7 +182,7 @@ class ImageEditingView(ft.Card):
         self._image_id = None
         self._channel_id = None
         self._seg_channel_id = None
-        self._save_lock = asyncio.Lock()
+        self._save_lock = None
         self._image_cache = ImageCache()
         self._fluorescence_cache = FluorescenceCache()
         self._running_tasks = set()
@@ -1248,11 +1248,15 @@ class ImageEditingView(ft.Card):
     def _trigger_background_save(self):
         current_path = self._mask_path
         current_data = self._mask_data
-        self.page.run_thread(self._save_async,current_path,current_data)
+        self.page.run_task(self._save_async,current_path,current_data)
 
     def _save_async(self,current_path,current_data):
         if current_path is None or current_data is None:
             return
+
+        if self._save_lock is None:
+            self._save_lock = asyncio.Lock()
+
         data_copy = copy.deepcopy(current_data)
         async def save():
             async with self._save_lock:
