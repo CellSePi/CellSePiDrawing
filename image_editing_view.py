@@ -945,12 +945,7 @@ class ImageEditingView(ft.Card):
             contours, _ = cv2.findContours(border_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cv2.drawContours(temp_mask_cell, contours, -1, 1, thickness=cv2.FILLED)
 
-        kernel = np.array(
-            [[0, 1, 0],
-             [1, 1, 1],
-             [0, 1, 0]],
-            dtype=np.uint8
-        )
+        kernel = np.ones((3,3), dtype=np.uint8)
 
         inner_pixels = cv2.erode(temp_mask_cell, kernel)
 
@@ -970,39 +965,50 @@ class ImageEditingView(ft.Card):
                 current_mask = mask_3d[z]
                 current_outline = outline_3d[z]
 
-                valid_fill = (
-                        fill_mask &
-                        (current_mask == 0) &
-                        (current_outline == 0)
-                )
-
-                valid_outline = (
-                        outline_mask &
-                        (current_mask == 0) &
-                        (current_outline == 0)
-                )
-
-                current_mask[valid_fill] = free_id
-                current_outline[valid_outline] = free_id
-
-                # refill the border if deleted in 3D mode
                 affected_ids = np.unique(
+                    current_mask[temp_mask_cell == 1]
+                )
+
+                affected_outline_ids = np.unique(
                     current_outline[temp_mask_cell == 1]
+                )
+
+                affected_ids = np.unique(
+                    np.concatenate([affected_ids, affected_outline_ids])
                 )
 
                 affected_ids = affected_ids[affected_ids != 0]
                 affected_ids = affected_ids[affected_ids != free_id]
 
+                # refill the border if deleted in 3D mode
+                affected_cells = {}
+
                 for cid in affected_ids:
-                    cell = (
+                    affected_cells[cid] = (
                             (current_mask == cid) |
                             (current_outline == cid)
-                    ).astype(np.uint8)
+                    ).copy()
 
-                    current_mask[cell == 1] = 0
-                    current_outline[cell == 1] = 0
+                current_mask[fill_mask] = free_id
+                current_outline[outline_mask] = free_id
 
-                    inner = cv2.erode(cell, kernel)
+                for cid, cell in affected_cells.items():
+
+                    cell = cell.astype(np.uint8)
+
+                    # remove overlap with new cell
+                    cell[temp_mask_cell == 1] = 0
+
+                    current_mask[current_mask == cid] = 0
+                    current_outline[current_outline == cid] = 0
+
+                    if np.sum(cell) == 0:
+                        continue
+
+                    inner = cv2.erode(
+                        cell,
+                        np.ones((3, 3), dtype=np.uint8)
+                    )
 
                     new_outline = (
                             (cell == 1) &
