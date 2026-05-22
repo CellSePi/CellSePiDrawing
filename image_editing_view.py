@@ -1330,7 +1330,9 @@ class ImageEditingView(ft.Card):
         else:
             raise KeyError("no valid action for undo button")
 
-        self._redo_stack.append(self._undo_stack.pop())
+        if len(self._undo_stack) > 0:
+            self._redo_stack.append(self._undo_stack.pop())
+
         if len(self._redo_stack) == 0:
             self._redo_button.icon_color = ft.Colors.BLACK_12
             self._redo_button.disabled = True
