@@ -410,6 +410,7 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self.select_image_async, img_id, channel_id, seg_channel_id)
 
     async def select_image_async(self, img_id, channel_id, seg_channel_id):
+        self._slice_id = -1 if not self._user_2_5d else self._slice_id
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
             await self._load_mask_image(img_id, seg_channel_id)
             # reset undo/redo when a new image is selected
@@ -803,7 +804,7 @@ class ImageEditingView(ft.Card):
             outline = np.take(outline, self._slice_id, axis=0)
 
         free_id = await asyncio.to_thread(search_free_id, mask,
-                                          outline, self.slice_id)  # search for the next free id in mask and outline
+                                          outline, self._slice_id)  # search for the next free id in mask and outline
 
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
