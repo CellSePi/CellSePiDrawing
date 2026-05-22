@@ -554,12 +554,14 @@ class ImageEditingView(ft.Card):
 
             else:
                 if self.check_edit_allowed():
-                    self._edit_button.icon_color = ft.Colors.WHITE_60
-                    self._edit_button.disabled = False
-                    self._edit_button.update()
-                    self._delete_button.icon_color = ft.Colors.WHITE_60
-                    self._delete_button.disabled = False
-                    self._delete_button.update()
+                    if self._edit_button.disabled:
+                        self._edit_button.icon_color = ft.Colors.WHITE60
+                        self._edit_button.disabled = False
+                        self._edit_button.update()
+                    if self._delete_button.disabled:
+                        self._delete_button.icon_color = ft.Colors.WHITE60
+                        self._delete_button.disabled = False
+                        self._delete_button.update()
                 else:
                     self._edit_button.icon_color = ft.Colors.BLACK_12
                     self._edit_button.disabled = True
