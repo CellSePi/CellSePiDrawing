@@ -183,6 +183,7 @@ class ImageEditingView(ft.Card):
         self._channel_id = None
         self._seg_channel_id = None
         self._save_lock = None
+        self._action_lock = None
         self._image_cache = ImageCache()
         self._fluorescence_cache = FluorescenceCache()
         self._running_tasks = set()
@@ -749,125 +750,15 @@ class ImageEditingView(ft.Card):
     def _cell_drawn(self, lines_data: list[tuple[tuple[float, float], tuple[float, float]]]):
         if not lines_data or len(lines_data) == 0:
             return
-
         data_to_pass = lines_data.copy()
+        self.page.run_task(self._task_draw_cell, data_to_pass)
 
+    async def _task_draw_cell(self, data):
+        lock = await self._get_action_lock()
+        async with lock:
+            await self._async_draw_cell_3D(data, is_undo_redo=False)
 
-        self.page.run_task(self._async_draw_cell_3D, data_to_pass)
-
-        #self.page.run_task(self._async_cell_drawn, data_to_pass)
-
-    async def _async_cell_drawn(self, lines_data: list | np.ndarray):
-        # update the mask data
-        # gets the pixels that build the lines of the drawn cell
-
-        is_new_mask = False
-        if self._mask_path is None:  # currently no mask is given
-            if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
-                                                                                                                       self._main_paths[
-                                                                                                                           self._image_id]:
-                return
-            is_new_mask = True
-            image_path = self._main_paths[self._image_id][self._seg_channel_id]
-            directory, filename = os.path.split(image_path)
-            name, _ = os.path.splitext(filename)
-            mask_file_name = f"{name}{self.mask_suffix}.npy"
-            self._mask_path = os.path.join(directory, mask_file_name)
-            if self._image_id not in self._mask_paths:
-                self._mask_paths[self._image_id] = {}
-            self._mask_paths[self._image_id][self._seg_channel_id] = self._mask_path
-            image_width, image_height = self.drawing_tool.get_bounds()
-            if not self._image_3d:
-                # 2D Case
-                self._mask_data = {
-                    "masks": np.zeros((image_height, image_width), dtype=np.uint16),
-                    "outlines": np.zeros((image_height, image_width), dtype=np.uint16)
-                }
-            else:
-                # 3D-Image Case (with Z-Slices)
-                self._mask_data = {
-                    "masks": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16),
-                    "outlines": np.zeros((self._slider_2_5d.max + 1, image_height, image_width), dtype=np.uint16)
-                }
-
-        mask = self._mask_data["masks"]
-        outline = self._mask_data["outlines"]
-
-        if mask.ndim == 3:
-            if self._slice_id < 0:
-                raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0)
-
-        if outline.ndim == 3:
-            if self._slice_id < 0:
-                raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0)
-
-        free_id = await asyncio.to_thread(search_free_id, mask,
-                                          outline, self._slice_id)  # search for the next free id in mask and outline
-
-        # add action to undo stack to be able to delete the cell afterward
-        self._undo_stack.append(("delete_action", free_id))
-        self._undo_button.icon_color = ft.Colors.WHITE_60
-        self._undo_button.disabled = False
-        self._undo_button.update()
-
-        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
-        # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
-        if type(lines_data) is list:
-            pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
-            cv2.fillPoly(temp_mask_cell, [pts], 1)
-
-        else:
-            border_mask = (lines_data > 0).astype(np.uint8)
-            contours, _ = cv2.findContours(border_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(temp_mask_cell, contours, -1, 1, thickness=cv2.FILLED)
-
-        valid_area = (temp_mask_cell == 1) & (mask == 0) & (outline == 0)
-        mask[valid_area] = free_id
-
-        current_cell_full = (mask == free_id).astype(np.uint8)
-
-        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
-        inner_pixels = cv2.erode(current_cell_full, kernel)
-
-        new_outline_mask = (current_cell_full == 1) & (inner_pixels == 0)
-
-        mask[new_outline_mask] = 0
-        outline[new_outline_mask] = free_id
-
-        mask_3d = None
-        outline_3d = None
-        if self._slice_id >= 0:
-            mask_3d = self._mask_data["masks"]
-            outline_3d = self._mask_data["outlines"]
-
-            if mask_3d.ndim == 3:
-                mask_3d[self._slice_id, :, :] = mask
-
-            if outline_3d.ndim == 3:
-                outline_3d[self._slice_id, :, :] = outline
-        self._mask_data = {"masks": mask if self._slice_id == -1 else mask_3d,
-                           "outlines": outline if self._slice_id == -1 else outline_3d}
-        await self.update_mask_image()
-        if not self._mask_image.visible:
-            self._mask_image.visible = True
-            self._mask_image.update()
-            self._mask_button.icon_color = ft.Colors.WHITE
-            self._mask_button.disabled = False
-            self._mask_button.tooltip = "Hide mask"
-            self._mask_button.update()
-            self._show_id_checkbox.disabled = False
-            if self._show_id_checkbox.selected:
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE
-            else:
-                self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
-            self._show_id_checkbox.update()
-
-        self._trigger_background_save()
-        self.on_mask_change(self._image_id, is_new_mask)
-
-    async def _async_draw_cell_3D(self,lines_data: list | np.ndarray):
+    async def _async_draw_cell_3D(self, lines_data: list | np.ndarray, is_undo_redo=False):
         # update the mask data
         # gets the pixels that build the lines of the drawn cell
 
@@ -926,14 +817,14 @@ class ImageEditingView(ft.Card):
             mask = mask_3d[0]
             outline = outline_3d[0]
 
-        free_id = await asyncio.to_thread(search_free_id, mask,
-                                          outline,self._slice_id)  # search for the next free id in mask and outline
+        free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
 
         # add action to undo stack to be able to delete the cell afterward
-        self._undo_stack.append(("delete_action", free_id))
-        self._undo_button.icon_color = ft.Colors.WHITE_60
-        self._undo_button.disabled = False
-        self._undo_button.update()
+        inverse_action = ("delete_action", free_id)
+        if not is_undo_redo:
+            self._undo_stack.append(inverse_action)
+            self._redo_stack.clear()
+            self._update_undo_redo_buttons()
 
         temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
@@ -1086,79 +977,17 @@ class ImageEditingView(ft.Card):
 
         self._trigger_background_save()
         self.on_mask_change(self._image_id, is_new_mask)
+        return inverse_action
 
     def _delete_cell(self, pos: tuple | int):
-        #self.page.run_task(self._async_delete_cell, pos)
-        self.page.run_task(self._async_delete_cell_3D, pos)
+        self.page.run_task(self._task_delete_cell, pos)
 
-    async def _async_delete_cell(self, pos: tuple | int):
-        image_dim ="2D"
+    async def _task_delete_cell(self, pos):
+        lock = await self._get_action_lock()
+        async with lock:
+            await self._async_delete_cell_3D(pos, is_undo_redo=False)
 
-        # delete the cell in the mask data
-        if self._mask_path is None:
-            return
-
-        mask = self._mask_data["masks"]
-        outline = self._mask_data["outlines"]
-
-        if mask.ndim == 3:
-            if self._slice_id < 0:
-                raise ValueError("slice_id should be non-negative")
-            mask = mask[self._slice_id, :, :]
-            image_dim="2.5D"
-
-        if outline.ndim == 3:
-            if self._slice_id < 0:
-                raise ValueError("slice_id should be non-negative")
-            outline = outline[self._slice_id, :, :]
-
-        cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
-
-        if not cell_id:
-            cell_id_outline = _get_cell_id_from_position(pos, outline)
-            if not cell_id_outline:
-                return
-            cell_id = cell_id_outline
-
-        # delete saved fluorescence cache, if cell is deleted
-        cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
-        slice_cache = cache_2d.get(self._channel_id, {})
-
-        condition = (
-                (
-                        self._slice_id in slice_cache
-                        and cell_id in slice_cache[self._slice_id]
-                )
-                or (
-                        None in slice_cache
-                        and cell_id in slice_cache[None]
-                )
-        )
-        if condition:
-            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
-                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
-
-        # Update the mask and outline (delete the cell)
-        cell_mask = (mask == cell_id)
-        cell_outline = (outline == cell_id)
-        # add line data to the undo stack to draw the cell later out of the line
-        self._undo_stack.append(("draw_action", cell_outline.copy()))
-        self._undo_button.icon_color = ft.Colors.WHITE_60
-        self._undo_button.disabled = False
-        self._undo_button.update()
-        # ------
-
-        mask[cell_mask] = 0
-        outline[cell_outline] = 0
-        if self._shifting_check_box.selected:
-            await asyncio.to_thread(mask_shifting, self._mask_data, cell_id, self._slice_id)
-            self._fluorescence_cache.clear()
-
-        await self.update_mask_image()
-        self._trigger_background_save()
-        self.on_mask_change(self._image_id, False)
-
-    async def _async_delete_cell_3D(self, pos: tuple | int):
+    async def _async_delete_cell_3D(self, pos: tuple | int, is_undo_redo=False):
         # delete the cell in the mask data
         if self._mask_path is None:
             return
@@ -1232,10 +1061,12 @@ class ImageEditingView(ft.Card):
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
         # add line data to the undo stack to draw the cell later out of the line
-        self._undo_stack.append(("draw_action", cell_outline.copy()))
-        self._undo_button.icon_color = ft.Colors.WHITE_60
-        self._undo_button.disabled = False
-        self._undo_button.update()
+        inverse_action = ("draw_action", cell_outline.copy())
+
+        if not is_undo_redo:
+            self._undo_stack.append(inverse_action)
+            self._redo_stack.clear()
+            self._update_undo_redo_buttons()
         # ------
 
         if self._shifting_check_box.selected:
@@ -1293,55 +1124,44 @@ class ImageEditingView(ft.Card):
         self.page.update()
 
     async def redo_stack(self, e):
-        if len(self._redo_stack) == 0:
-            return
-        self._undo_button.icon_color = ft.Colors.WHITE_60
-        self._undo_button.disabled = False
-        self._undo_button.update()
-        first_list_item = self._redo_stack.pop()
+        lock = await self._get_action_lock()
+        async with lock:
+            if len(self._redo_stack) == 0:
+                return
 
-        if first_list_item[0] == "delete_action":
-            await self._async_delete_cell_3D(first_list_item[1])
-        elif first_list_item[0] == "draw_action":
-            await self._async_draw_cell_3D(first_list_item[1])
-        else:
-            raise KeyError("no valid action for redo button")
+            action = self._redo_stack.pop()
 
-        if len(self._redo_stack) == 0:
-            self._redo_button.icon_color = ft.Colors.BLACK_12
-            self._redo_button.disabled = True
-            self._redo_button.update()
-        if len(self._undo_stack) == 0:
-            self._undo_button.icon_color = ft.Colors.BLACK_12
-            self._undo_button.disabled = True
-            self._undo_button.update()
+            if action[0] == "delete_action":
+                inverse = await self._async_delete_cell_3D(action[1], is_undo_redo=True)
+            elif action[0] == "draw_action":
+                inverse = await self._async_draw_cell_3D(action[1], is_undo_redo=True)
+            else:
+                raise KeyError("no valid action for redo button")
+
+            if inverse is not None:
+                self._undo_stack.append(inverse)
+
+            self._update_undo_redo_buttons()
 
     async def undo_stack(self, e):
-        if len(self._undo_stack) == 0:
-            return
+        lock = await self._get_action_lock()
+        async with lock:
+            if len(self._undo_stack) == 0:
+                return
 
-        self._redo_button.icon_color = ft.Colors.WHITE_60
-        self._redo_button.disabled = False
-        self._redo_button.update()
-        first_list_item = self._undo_stack.pop()
-        if first_list_item[0] == "delete_action":
-            await self._async_delete_cell_3D(first_list_item[1])
-        elif first_list_item[0] == "draw_action":
-            await self._async_draw_cell_3D(first_list_item[1])
-        else:
-            raise KeyError("no valid action for undo button")
+            action = self._undo_stack.pop()
 
-        if len(self._undo_stack) > 0:
-            self._redo_stack.append(self._undo_stack.pop())
+            if action[0] == "delete_action":
+                inverse = await self._async_delete_cell_3D(action[1], is_undo_redo=True)
+            elif action[0] == "draw_action":
+                inverse = await self._async_draw_cell_3D(action[1], is_undo_redo=True)
+            else:
+                raise KeyError("no valid action for undo button")
 
-        if len(self._redo_stack) == 0:
-            self._redo_button.icon_color = ft.Colors.BLACK_12
-            self._redo_button.disabled = True
-            self._redo_button.update()
-        if len(self._undo_stack) == 0:
-            self._undo_button.icon_color = ft.Colors.BLACK_12
-            self._undo_button.disabled = True
-            self._undo_button.update()
+            if inverse is not None:
+                self._redo_stack.append(inverse)
+
+            self._update_undo_redo_buttons()
 
     def show_ids_and_value(self, pos: tuple):
         if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
@@ -1483,3 +1303,17 @@ class ImageEditingView(ft.Card):
             return True
         else:
             return False
+
+    async def _get_action_lock(self):
+        if self._action_lock is None:
+            self._action_lock = asyncio.Lock()
+        return self._action_lock
+
+    def _update_undo_redo_buttons(self):
+        self._undo_button.disabled = len(self._undo_stack) == 0
+        self._undo_button.icon_color = ft.Colors.WHITE_60 if len(self._undo_stack) > 0 else ft.Colors.BLACK_12
+        self._undo_button.update()
+
+        self._redo_button.disabled = len(self._redo_stack) == 0
+        self._redo_button.icon_color = ft.Colors.WHITE_60 if len(self._redo_stack) > 0 else ft.Colors.BLACK_12
+        self._redo_button.update()
