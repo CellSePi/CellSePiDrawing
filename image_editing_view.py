@@ -926,7 +926,7 @@ class ImageEditingView(ft.Card):
             outline = outline_3d[0]
 
         free_id = await asyncio.to_thread(search_free_id, mask,
-                                          outline)  # search for the next free id in mask and outline
+                                          outline,self._slice_id)  # search for the next free id in mask and outline
 
         # add action to undo stack to be able to delete the cell afterward
         self._undo_stack.append(("delete_action", free_id))
