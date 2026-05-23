@@ -318,7 +318,7 @@ class ImageEditingView(ft.Card):
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=self._toggle_shifting,
-            tooltip="Shifting IDs: OFF \nMasks will leave gaps in the ID sequence. No shifting will occur."
+            tooltip="Shifts the IDs when a mask gets changed to restore a continuous order without gaps."
         )
         self.control_tools = ft.Container(ft.Container(ft.Row(
             [self._undo_button,
@@ -754,11 +754,6 @@ class ImageEditingView(ft.Card):
 
     async def _toggle_shifting(self, e):
         e.control.selected = not e.control.selected
-        if e.control.selected:
-            e.control.tooltip = "Shifting IDs: ON \nShifts the IDs when a mask gets changed to restore a continuous order without gaps."
-        else:
-            e.control.tooltip = "Shifting IDs: OFF \nMasks will leave gaps in the ID sequence. No shifting will occur."
-
         e.control.update()
 
     async def _toggle_cell_info(self):
