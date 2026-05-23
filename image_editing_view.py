@@ -6,8 +6,6 @@ from collections import OrderedDict
 from pathlib import Path
 from collections import deque
 
-import time
-import tempfile
 import cv2
 import flet as ft
 import numpy as np
@@ -57,13 +55,11 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
+    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+    result = base64.b64encode(buffer).decode('utf-8')
 
-    temp_dir = tempfile.gettempdir()
-    filepath = os.path.join(temp_dir, f"current_view_{time.time()}.png")
 
-    cv2.imwrite(filepath, image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-
-    return filepath, shape, check
+    return result, shape, check
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -372,10 +368,6 @@ class ImageEditingView(ft.Card):
             self._id_info,
         ])
 
-    def __del__(self):
-        if os.path.exists(self._main_image.src):
-            os.remove(self._main_image.src)
-
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
 
@@ -393,8 +385,6 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self.update_mask_image)
 
     def reset_image(self, without_update=False):
-        if os.path.exists(self._main_image.src):
-                os.remove(self._main_image.src)
         self._main_image.src = "Placeholder"
         self._main_image.visible = False
         self._seg_channel_id = None
@@ -541,8 +531,6 @@ class ImageEditingView(ft.Card):
                                                             self.brightness,
                                                             self.contrast
                                                             )
-        if os.path.exists(self._main_image.src):
-            os.remove(self._main_image.src)
         self._main_image.src = src
         self._main_image.update()
 
@@ -569,8 +557,6 @@ class ImageEditingView(ft.Card):
             self.brightness,
             self.contrast
         )
-        if os.path.exists(self._main_image.src):
-            os.remove(self._main_image.src)
         self._main_image.src = src
         self._main_image.visible = True
         self._main_image.update()
@@ -1463,8 +1449,6 @@ class ImageEditingView(ft.Card):
 
     def reset_mask(self):
         if self._mask_path is not None:
-            if os.path.exists(self._mask_path):
-                os.remove(self._mask_path)
             if self._mask_paths and self._image_id in self._mask_paths:
                 self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
             self._mask_path = None
