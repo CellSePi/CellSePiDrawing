@@ -1205,7 +1205,7 @@ class ImageEditingView(ft.Card):
             action = redo[0]
 
             mapping = redo[1]
-            if mapping:
+            if mapping is not None:
                 max_in_mask = self._mask_data["outlines"].max()
                 max_in_mapping = max(mapping.values())
                 max_id = max(max_in_mask, max_in_mapping)
@@ -1277,7 +1277,7 @@ class ImageEditingView(ft.Card):
 
             mapping = undo[1]
 
-            if mapping:
+            if mapping is not None:
                 inverse_map = {new: old for old, new in mapping.items()}
                 max_in_mask = self._mask_data["outlines"].max()
                 max_in_mapping = max(inverse_map.keys()) if inverse_map else 0
