@@ -1,17 +1,15 @@
 import asyncio
 import base64
-import copy
 import os
 import typing
 from collections import OrderedDict
-from io import BytesIO
 from pathlib import Path
+from collections import deque
 
 import cv2
 import flet as ft
 import numpy as np
 import tifffile
-from PIL import Image, ImageEnhance
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
@@ -215,8 +213,10 @@ class ImageEditingView(ft.Card):
         self.on_mask_change = on_mask_change or (lambda y, x: None)
         self.mask_suffix = "_seg"
         self.expand = True
-        self._redo_stack = []
-        self._undo_stack = []
+        self._3d_max_history = 10
+        self._2d_max_history = 20
+        self._redo_stack = deque(maxlen=self._2d_max_history)
+        self._undo_stack = deque(maxlen=self._2d_max_history)
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                     expand=True,left=0, right=0, top=0, bottom=0)
@@ -543,6 +543,8 @@ class ImageEditingView(ft.Card):
         self._main_image.visible = True
         self._main_image.update()
         if img_3d:
+            self._redo_stack = deque(maxlen=self._3d_max_history)
+            self._undo_stack = deque(maxlen=self._3d_max_history)
             self.drawing_tool.set_bounds(shape[2], shape[1])
             self._image_3d = True
             if self._slider_2_5d.opacity == 1.0 and self.check_edit_allowed():
@@ -606,6 +608,8 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
         else:
+            self._redo_stack = deque(maxlen=self._2d_max_history)
+            self._undo_stack = deque(maxlen=self._2d_max_history)
             self.drawing_tool.set_bounds(shape[1], shape[0])
             self._image_3d = False
             if self.check_edit_allowed():
