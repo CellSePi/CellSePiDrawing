@@ -839,7 +839,7 @@ class ImageEditingView(ft.Card):
 
         free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
 
-        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
+        temp_mask_cell = np.zeros_like(mask[0] if draw_on_all_slices else mask, dtype=np.uint8)
         # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
         cv2.fillPoly(temp_mask_cell, [pts], 1)
