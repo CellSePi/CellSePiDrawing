@@ -6,6 +6,8 @@ from collections import OrderedDict
 from pathlib import Path
 from collections import deque
 
+import time
+import tempfile
 import cv2
 import flet as ft
 import numpy as np
@@ -56,11 +58,12 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
 
-    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-    result = base64.b64encode(buffer).decode('utf-8')
+    temp_dir = tempfile.gettempdir()
+    filepath = os.path.join(temp_dir, f"current_view_{time.time()}.png")
 
+    cv2.imwrite(filepath, image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-    return result, shape, check
+    return filepath, shape, check
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -93,10 +96,12 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     if has_outline:
         image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
-    encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
-    success, buffer = cv2.imencode('.webp', image_mask, encode_params)
+    temp_dir = tempfile.gettempdir()
+    filepath = os.path.join(temp_dir, f"current_view_mask{time.time()}.webp")
 
-    return base64.b64encode(buffer).decode('utf-8')
+    cv2.imwrite(filepath, image_mask, [cv2.IMWRITE_WEBP_QUALITY, 101])
+
+    return filepath
 
 
 def _get_cell_id_from_position(position, mask):
@@ -369,6 +374,12 @@ class ImageEditingView(ft.Card):
             self._id_info,
         ])
 
+    def __del__(self):
+        if os.path.exists(self._main_image.src):
+            os.remove(self._main_image.src)
+        if os.path.exists(self._mask_image.src):
+            os.remove(self._mask_image.src)
+
     def set_mask_paths(self, mask_paths: list):
         self._mask_paths = mask_paths
 
@@ -386,12 +397,16 @@ class ImageEditingView(ft.Card):
         self.page.run_task(self.update_mask_image)
 
     def reset_image(self, without_update=False):
+        if os.path.exists(self._main_image.src):
+                os.remove(self._main_image.src)
         self._main_image.src = "Placeholder"
         self._main_image.visible = False
         self._seg_channel_id = None
         self._image_id = None
         self._mask_path = None
         self._mask_data = None
+        if os.path.exists(self._mask_image.src):
+                os.remove(self._mask_image.src)
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_button.tooltip = "Show mask"
@@ -532,6 +547,8 @@ class ImageEditingView(ft.Card):
                                                             self.brightness,
                                                             self.contrast
                                                             )
+        if os.path.exists(self._main_image.src):
+            os.remove(self._main_image.src)
         self._main_image.src = src
         self._main_image.update()
 
@@ -558,6 +575,8 @@ class ImageEditingView(ft.Card):
             self.brightness,
             self.contrast
         )
+        if os.path.exists(self._main_image.src):
+            os.remove(self._main_image.src)
         self._main_image.src = src
         self._main_image.visible = True
         self._main_image.update()
@@ -666,6 +685,8 @@ class ImageEditingView(ft.Card):
                         self._mask_data = await asyncio.to_thread(_load_mask_data,Path(self._mask_paths[img_id][seg_channel_id]))
                         self._mask_path = new_path
 
+                    if os.path.exists(self._mask_image.src):
+                        os.remove(self._mask_image.src)
                     self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
                                                                    self._mask_data["outlines"],
                                                                    self.mask_color, self.outline_color,
@@ -730,6 +751,8 @@ class ImageEditingView(ft.Card):
             return
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
+        if os.path.exists(self._mask_image.src):
+            os.remove(self._mask_image.src)
         self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
                                                        self.outline_color, self.mask_opacity, self._slice_id)
         self._mask_image.update()
