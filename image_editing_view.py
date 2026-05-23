@@ -15,6 +15,12 @@ from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 
 
+def _load_mask_data(path):
+    data = np.load(path, allow_pickle=True).item()
+    data["masks"] = data["masks"].astype(np.uint16)
+    data["outlines"] = data["outlines"].astype(np.uint16)
+    return data
+
 def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
     shape = list(image.shape)
 
@@ -49,9 +55,12 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
-    _, buffer = cv2.imencode('png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-    return base64.b64encode(buffer).decode('utf-8'), shape, check
+    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+    result = base64.b64encode(buffer).decode('utf-8')
+
+
+    return result, shape, check
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -462,13 +471,13 @@ class ImageEditingView(ft.Card):
         self._image_id = img_id
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
-        self._load_main_image(img_id, channel_id)
+        await self._load_main_image(img_id, channel_id)
 
-    def _load_main_image(self, img_id, channel_id):
+    async def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
             if img_id in self._main_paths:
                 if channel_id in self._main_paths[img_id]:
-                    self._load_main_image_with_path(self._main_paths[img_id][channel_id])
+                    await self._load_main_image_with_path(self._main_paths[img_id][channel_id])
                     return
         self._image_3d = False
         self._main_image.src = "Placeholder"
@@ -493,7 +502,7 @@ class ImageEditingView(ft.Card):
             self._slice_id = -1
 
         if self._main_image.src != "Placeholder":
-            self._load_main_image(self._image_id, self._channel_id)
+            await self._load_main_image(self._image_id, self._channel_id)
             self.page.run_task(self.update_mask_image)
             if self._image_3d:
                 self._redo_stack.clear()
@@ -511,7 +520,8 @@ class ImageEditingView(ft.Card):
         self._running_tasks.clear()
 
     async def _adjust_image_async(self, path, brightness, contrast):
-        return await asyncio.to_thread(load_image, self._image_cache.get_image(path), False, self._slice_id, brightness,
+        image_data = await asyncio.to_thread(self._image_cache.get_image, path)
+        return await asyncio.to_thread(load_image, image_data, False, self._slice_id, brightness,
                                        contrast)
 
     async def _update_main_image(self, path):
@@ -535,10 +545,19 @@ class ImageEditingView(ft.Card):
         finally:
             self._running_tasks.discard(task)
 
-    def _load_main_image_with_path(self, path):
+
+    async def _load_main_image_with_path(self, path):
         self.cancel_all_tasks()
-        src, shape, img_3d = load_image(self._image_cache.get_image(path), auto_adjust=self.auto_adjust,
-                                        get_slice=self._slice_id, brightness=self.brightness, contrast=self.contrast)
+        image_data = await asyncio.to_thread(self._image_cache.get_image, path)
+
+        src, shape, img_3d = await asyncio.to_thread(
+            load_image,
+            image_data,
+            self.auto_adjust,
+            self._slice_id,
+            self.brightness,
+            self.contrast
+        )
         self._main_image.src = src
         self._main_image.visible = True
         self._main_image.update()
@@ -636,7 +655,7 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.divisions = None
             self._slider_2_5d.disabled = True
             self._slider_2_5d.update()
-        return
+
 
     async def _load_mask_image(self, img_id, seg_channel_id):
         if self._mask_paths is not None:
@@ -644,11 +663,8 @@ class ImageEditingView(ft.Card):
                 if seg_channel_id in self._mask_paths[img_id]:
                     new_path = self._mask_paths[img_id][seg_channel_id]
                     if new_path != self._mask_path:
-                        self._mask_data = np.load(
-                            Path(self._mask_paths[img_id][seg_channel_id]), allow_pickle=True).item()
+                        self._mask_data = await asyncio.to_thread(_load_mask_data,Path(self._mask_paths[img_id][seg_channel_id]))
                         self._mask_path = new_path
-                        self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
-                        self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
 
                     self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
                                                                    self._mask_data["outlines"],
@@ -681,9 +697,8 @@ class ImageEditingView(ft.Card):
         elif self._mask_paths is not None and self._image_id in self._mask_paths and self._seg_channel_id in \
                 self._mask_paths[self._image_id] and self._mask_paths[self._image_id][self._seg_channel_id] is not None:
             self._mask_path = self._mask_paths[self._image_id][self._seg_channel_id]
-            self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
-            self._mask_data["masks"] = self._mask_data["masks"].astype(np.uint16)
-            self._mask_data["outlines"] = self._mask_data["outlines"].astype(np.uint16)
+            self._mask_data = await asyncio.to_thread(_load_mask_data,
+                                                      Path(self._mask_path))
             await self._async_update_mask_image()
         else:
             self._mask_image.src = "Placeholder"
@@ -1114,7 +1129,6 @@ class ImageEditingView(ft.Card):
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
         slice_cache = cache_2d.get(self._channel_id, {})
 
-        print("cellid:",cell_id)
         condition = (
                 (
                         self._slice_id in slice_cache
