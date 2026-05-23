@@ -39,7 +39,7 @@ def mask_shifting(mask_data):
     max_id = all_ids[-1]
     lookup = np.arange(max_id + 1, dtype=np.uint16)
 
-    for new_id, old_id in mapping_dict.items():
+    for old_id, new_id in mapping_dict.items():
         lookup[old_id] = new_id
 
     mask_data["masks"] = lookup[mask]
