@@ -49,7 +49,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
-    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_WEBP_QUALITY, 101])
 
     return base64.b64encode(buffer).decode('utf-8'), shape, check
 
