@@ -1000,7 +1000,7 @@ class ImageEditingView(ft.Card):
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
-            inverse_action = inverse_action + (mapping,)
+            inverse_action = (inverse_action,mapping)
 
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
@@ -1137,7 +1137,9 @@ class ImageEditingView(ft.Card):
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
-            inverse_action = inverse_action + (mapping,)
+            inverse_action = (inverse_action, mapping)
+        else:
+            inverse_action = (inverse_action, None)
 
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
@@ -1199,46 +1201,59 @@ class ImageEditingView(ft.Card):
             if len(self._redo_stack) == 0:
                 return
 
-            action = self._redo_stack.pop()
-            has_mapping = len(action[1]) > 5 and action[1][5] is not None
+            redo = self._redo_stack.pop()
+            action = redo[0]
+
+            mapping = redo[1]
+            if mapping:
+                max_id = max(mapping.values())
+                lookup = np.arange(max_id + 1, dtype=np.uint16)
+                for old, new in mapping.items():
+                    lookup[old] = new
+
+                self._mask_data["masks"] = lookup[self._mask_data["masks"]]
+                self._mask_data["outlines"] = lookup[self._mask_data["outlines"]]
 
             if action[0] == "restore_state":
-                is_3d = action[1][0]
-                if has_mapping:
-                    mapping = action[1][5]
-                    max_id = max(mapping.values())
-                    lookup = np.arange(max_id + 1, dtype=np.uint16)
-                    for old, new in mapping.items():
-                        lookup[old] = new
-
-                    self._mask_data["masks"] = lookup[self._mask_data["masks"]]
-                    self._mask_data["outlines"] = lookup[self._mask_data["outlines"]]
+                data = action[1]
+                is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask, old_outline = action[1][:5]
+                    _, y_start, x_start, old_mask, old_outline = data[1:]
 
-                    redo_mask_patch = self._mask_data["masks"][y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]].copy()
+                    redo_mask_patch = self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
+                    redo_outline_patch = self._mask_data["outlines"][
+                        y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]].copy()
 
-                    self._mask_data["masks"][y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
-                    self._mask_data["outlines"][y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
+                    self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
+                    self._mask_data["outlines"][
+                        y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
 
                     inverse = ("restore_state", (False, y_start, x_start, redo_mask_patch, redo_outline_patch))
                 else:
-                    _, z_start, y_start, x_start, old_mask, old_outline = action[1][:6]
+                    _, z_start, y_start, x_start, old_mask, old_outline = data[1:]
 
-                    redo_mask_patch = self._mask_data["masks"][z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +old_mask.shape[2]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[1], x_start: x_start + old_outline.shape[2]].copy()
+                    redo_mask_patch = self._mask_data["masks"][
+                        z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
+                                                                                                             old_mask.shape[
+                                                                                                                 2]].copy()
+                    redo_outline_patch = self._mask_data["outlines"][
+                        z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
+                            1], x_start: x_start + old_outline.shape[2]].copy()
 
-                    self._mask_data["masks"][z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start + old_mask.shape[2]] = old_mask
-                    self._mask_data["outlines"][z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[1], x_start: x_start + old_outline.shape[2]] = old_outline
+                    self._mask_data["masks"][
+                        z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
+                                                                                                             old_mask.shape[
+                                                                                                                 2]] = old_mask
+                    self._mask_data["outlines"][
+                        z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
+                            1], x_start: x_start + old_outline.shape[2]] = old_outline
 
                     inverse = ("restore_state", (True, z_start, y_start, x_start, redo_mask_patch, redo_outline_patch))
 
-                if has_mapping:
-                    inverse = inverse + (mapping,)
-
-                self._undo_stack.append(inverse)
+                self._undo_stack.append((inverse,mapping))
 
                 await self.update_mask_image()
                 self._trigger_background_save()
@@ -1255,24 +1270,27 @@ class ImageEditingView(ft.Card):
             if len(self._undo_stack) == 0:
                 return
 
-            action = self._undo_stack.pop()
-            has_mapping = len(action[1]) > 5 and action[1][5] is not None
+            undo = self._undo_stack.pop()
+            action = undo[0]
+
+            mapping = undo[1]
+
+            if mapping:
+                inverse_map = {new: old for old, new in mapping.items()}
+                max_id = max(inverse_map.keys())
+                lookup = np.arange(max_id + 1, dtype=np.uint16)
+                for new, old in inverse_map.items():
+                    lookup[new] = old
+
+                self._mask_data["masks"] = lookup[self._mask_data["masks"]]
+                self._mask_data["outlines"] = lookup[self._mask_data["outlines"]]
 
             if action[0] == "restore_state":
-                is_3d = action[1][0]
-                if has_mapping:
-                    mapping = action[1][5]
-                    inverse_map = {new: old for old, new in mapping.items()}
-                    max_id = max(inverse_map.keys())
-                    lookup = np.arange(max_id + 1, dtype=np.uint16)
-                    for new, old in inverse_map.items():
-                        lookup[new] = old
-
-                    self._mask_data["masks"] = lookup[self._mask_data["masks"]]
-                    self._mask_data["outlines"] = lookup[self._mask_data["outlines"]]
+                data = action[1]
+                is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask, old_outline = action[1][:5]
+                    _, y_start, x_start, old_mask, old_outline = data[1:]
 
                     redo_mask_patch = self._mask_data["masks"][y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
                     redo_outline_patch = self._mask_data["outlines"][y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]].copy()
@@ -1282,7 +1300,7 @@ class ImageEditingView(ft.Card):
 
                     inverse = ("restore_state", (False, y_start, x_start, redo_mask_patch, redo_outline_patch))
                 else:
-                    _, z_start, y_start, x_start, old_mask, old_outline = action[1][:6]
+                    _, z_start, y_start, x_start, old_mask, old_outline = data[1:]
 
                     redo_mask_patch = self._mask_data["masks"][z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +old_mask.shape[2]].copy()
                     redo_outline_patch = self._mask_data["outlines"][z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[1], x_start: x_start + old_outline.shape[2]].copy()
@@ -1292,10 +1310,7 @@ class ImageEditingView(ft.Card):
 
                     inverse = ("restore_state", (True, z_start, y_start, x_start, redo_mask_patch, redo_outline_patch))
 
-                if has_mapping:
-                    inverse = inverse + (mapping,)
-
-                self._redo_stack.append(inverse)
+                self._redo_stack.append((inverse,mapping))
 
                 await self.update_mask_image()
                 self._trigger_background_save()
