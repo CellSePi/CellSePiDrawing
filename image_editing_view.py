@@ -1071,9 +1071,6 @@ class ImageEditingView(ft.Card):
         for cid in unique_ids:
             temp_mask_cell |= (mask_data == cid).astype(np.uint8)
             temp_mask_cell |= (outline_data == cid).astype(np.uint8)
-        cell_mask = (self._mask_data["masks"] == cell_id)
-        cell_outline = (self._mask_data["outlines"] == cell_id)
-        temp_mask_cell = (cell_mask | cell_outline).astype(np.uint8)
 
         if not np.any(temp_mask_cell):
             return
