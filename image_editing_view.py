@@ -1207,11 +1207,12 @@ class ImageEditingView(ft.Card):
             action = redo[0]
 
             mapping = redo[1]
-            if mapping is not None:
+            if mapping is not None and len(mapping) > 0:
                 max_in_mask = self._mask_data["outlines"].max()
                 max_in_mapping = max(mapping.keys())
                 max_id = max(max_in_mask, max_in_mapping)
                 lookup = np.arange(max_id + 1, dtype=np.uint16)
+
                 for old, new in mapping.items():
                     lookup[old] = new
 
@@ -1279,7 +1280,7 @@ class ImageEditingView(ft.Card):
 
             mapping = undo[1]
 
-            if mapping is not None:
+            if mapping is not None and len(mapping) > 0:
                 inverse_map = {new: old for old, new in mapping.items()}
                 max_in_mask = self._mask_data["outlines"].max()
                 max_in_mapping = max(inverse_map.keys()) if inverse_map else 0
