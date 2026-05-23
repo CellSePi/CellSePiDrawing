@@ -32,7 +32,7 @@ def mask_shifting(mask_data):
     all_ids = all_ids[all_ids != 0]
 
     if len(all_ids) == 0 or np.array_equal(all_ids, np.arange(1, len(all_ids) + 1)):
-        return
+        return {}
 
     mapping_dict = {old_id: new_id for new_id, old_id in enumerate(all_ids, 1)}
 
