@@ -1001,6 +1001,8 @@ class ImageEditingView(ft.Card):
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
             inverse_action = (inverse_action,mapping)
+        else:
+            inverse_action = (inverse_action,None)
 
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
