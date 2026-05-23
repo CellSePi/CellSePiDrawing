@@ -1017,7 +1017,6 @@ class ImageEditingView(ft.Card):
 
         self._trigger_background_save()
         self.on_mask_change(self._image_id, is_new_mask)
-        return inverse_action
 
     def _delete_cell(self, pos: tuple):
         self.page.run_task(self._task_delete_cell, pos)
@@ -1139,7 +1138,6 @@ class ImageEditingView(ft.Card):
         await self.update_mask_image()
         self._trigger_background_save()
         self.on_mask_change(self._image_id, False)
-        return inverse_action
 
     def _trigger_background_save(self):
         current_path = self._mask_path
