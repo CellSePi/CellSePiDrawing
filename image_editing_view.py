@@ -1060,7 +1060,7 @@ class ImageEditingView(ft.Card):
                 return
             cell_id = cell_id_outline
 
-        unique_ids = np.unique(ids_in_column)
+        unique_ids = np.unique(cell_id)
 
         if len(unique_ids) == 0:
             return
