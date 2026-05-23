@@ -1066,6 +1066,7 @@ class ImageEditingView(ft.Card):
             return
 
         mask_data = self._mask_data["masks"]
+        outline_data = self._mask_data["outlines"]
         temp_mask_cell = np.zeros_like(mask_data, dtype=np.uint8)
         for cid in unique_ids:
             temp_mask_cell |= (mask_data == cid).astype(np.uint8)
