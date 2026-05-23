@@ -850,6 +850,13 @@ class ImageEditingView(ft.Card):
         bbox_2d = get_bbox_2d(temp_mask_cell)
         y_min, y_max, x_min, x_max = bbox_2d
 
+        #added buffer if outline of other cells gets changed
+        image_width, image_height = self.drawing_tool.get_bounds()
+        y_min = max(0, y_min - 1)
+        x_min = max(0, x_min - 1)
+        y_max = min(image_height, y_max + 1)
+        x_max = min(image_width, x_max + 1)
+
         if not self._image_3d:
             old_mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
             old_outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max].copy()
