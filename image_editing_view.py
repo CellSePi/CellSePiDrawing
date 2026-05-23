@@ -55,7 +55,6 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
 
     return base64.b64encode(buffer).decode('utf-8'), shape, check
 
-
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
     handles the conversion of the given file data
@@ -107,6 +106,25 @@ def _get_cell_id_from_position(position, mask):
             return mask[y, x]
         return None
 
+def get_bbox_3d(mask_array):
+    z_indices = np.where(np.any(mask_array, axis=(1, 2)))[0]
+    y_indices = np.where(np.any(mask_array, axis=(0, 2)))[0]
+    x_indices = np.where(np.any(mask_array, axis=(0, 1)))[0]
+
+    return (
+        z_indices.min(), z_indices.max() + 1,
+        y_indices.min(), y_indices.max() + 1,
+        x_indices.min(), x_indices.max() + 1
+    )
+
+def get_bbox_2d(mask_array):
+    y_indices = np.where(np.any(mask_array, axis=(1)))[0]
+    x_indices = np.where(np.any(mask_array, axis=(0)))[0]
+
+    return (
+        y_indices.min(), y_indices.max() + 1,
+        x_indices.min(), x_indices.max() + 1
+    )
 
 class FluorescenceCache:
     def __init__(self, max_values=20):
@@ -758,9 +776,9 @@ class ImageEditingView(ft.Card):
     async def _task_draw_cell(self, data):
         lock = await self._get_action_lock()
         async with lock:
-            await self._async_draw_cell_3D(data, is_undo_redo=False)
+            await self._async_draw_cell_3D(data)
 
-    async def _async_draw_cell_3D(self, lines_data: list | np.ndarray, is_undo_redo=False):
+    async def _async_draw_cell_3D(self, lines_data: list):
         # update the mask data
         # gets the pixels that build the lines of the drawn cell
 
@@ -821,23 +839,36 @@ class ImageEditingView(ft.Card):
 
         free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
 
-        # add action to undo stack to be able to delete the cell afterward
-        inverse_action = ("delete_action", free_id)
-        if not is_undo_redo:
+        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
+        # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
+        pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
+        cv2.fillPoly(temp_mask_cell, [pts], 1)
+
+        if not np.any(temp_mask_cell):
+            return
+
+        bbox_2d = get_bbox_2d(temp_mask_cell)
+        y_min, y_max, x_min, x_max = bbox_2d
+
+        if not self._image_3d:
+            old_mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
+            old_outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (False, y_min, x_min, old_mask_patch, old_outline_patch))
+        else:
+            if draw_on_all_slices:
+                z_min = 0
+                z_max = self._mask_data["masks"].shape[0]
+            else:
+                z_min = self._slice_id
+                z_max = self._slice_id + 1
+
+            old_mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            old_outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_mask_patch, old_outline_patch))
+
             self._undo_stack.append(inverse_action)
             self._redo_stack.clear()
             self._update_undo_redo_buttons()
-
-        temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
-        # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
-        if type(lines_data) is list:
-            pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
-            cv2.fillPoly(temp_mask_cell, [pts], 1)
-
-        else:
-            border_mask = (lines_data > 0).astype(np.uint8)
-            contours, _ = cv2.findContours(border_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(temp_mask_cell, contours, -1, 1, thickness=cv2.FILLED)
 
         kernel = np.ones((3,3), dtype=np.uint8)
 
@@ -981,15 +1012,15 @@ class ImageEditingView(ft.Card):
         self.on_mask_change(self._image_id, is_new_mask)
         return inverse_action
 
-    def _delete_cell(self, pos: tuple | int):
+    def _delete_cell(self, pos: tuple):
         self.page.run_task(self._task_delete_cell, pos)
 
     async def _task_delete_cell(self, pos):
         lock = await self._get_action_lock()
         async with lock:
-            await self._async_delete_cell_3D(pos, is_undo_redo=False)
+            await self._async_delete_cell_3D(pos)
 
-    async def _async_delete_cell_3D(self, pos: tuple | int, is_undo_redo=False):
+    async def _async_delete_cell_3D(self, pos: tuple):
         # delete the cell in the mask data
         if self._mask_path is None:
             return
@@ -1014,13 +1045,35 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = outline[self._slice_id, :, :]
 
-        cell_id = pos if type(pos) != tuple else _get_cell_id_from_position(pos, mask)
+        cell_id = _get_cell_id_from_position(pos, mask)
 
         if cell_id is None:
             cell_id_outline = _get_cell_id_from_position(pos, outline)
             if cell_id_outline is None:
                 return
             cell_id = cell_id_outline
+
+        cell_mask = (self._mask_data["masks"] == cell_id)
+        cell_outline = (self._mask_data["outlines"] == cell_id)
+        temp_mask_cell = (cell_mask | cell_outline).astype(np.uint8)
+
+        if not np.any(temp_mask_cell):
+            return
+
+        if not self._image_3d:
+            y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
+            old_mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
+            old_outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (False, y_min, x_min, old_mask_patch, old_outline_patch))
+        else:
+            z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
+            old_mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            old_outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_mask_patch, old_outline_patch))
+
+        self._undo_stack.append(inverse_action)
+        self._redo_stack.clear()
+        self._update_undo_redo_buttons()
 
         # Update the mask and outline (delete the cell)
         if delete_cell_on_all_slices:
@@ -1062,13 +1115,6 @@ class ImageEditingView(ft.Card):
             self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
-        # add line data to the undo stack to draw the cell later out of the line
-        inverse_action = ("draw_action", cell_outline.copy())
-
-        if not is_undo_redo:
-            self._undo_stack.append(inverse_action)
-            self._redo_stack.clear()
-            self._update_undo_redo_buttons()
         # ------
 
         if self._shifting_check_box.selected:
@@ -1134,15 +1180,49 @@ class ImageEditingView(ft.Card):
 
             action = self._redo_stack.pop()
 
-            if action[0] == "delete_action":
-                inverse = await self._async_delete_cell_3D(action[1], is_undo_redo=True)
-            elif action[0] == "draw_action":
-                inverse = await self._async_draw_cell_3D(action[1], is_undo_redo=True)
+            if action[0] == "restore_state":
+                is_3d = action[1][0]
+
+                if not is_3d:
+                    _, y_start, x_start, redo_mask, redo_outline = action[1]
+
+                    undo_mask_patch = self._mask_data["masks"][y_start: y_start + redo_mask.shape[0],
+                    x_start: x_start + redo_mask.shape[1]].copy()
+                    undo_outline_patch = self._mask_data["outlines"][y_start: y_start + redo_outline.shape[0],
+                    x_start: x_start + redo_outline.shape[1]].copy()
+                    inverse = ("restore_state", (False, y_start, x_start, undo_mask_patch, undo_outline_patch))
+
+                    self._mask_data["masks"][y_start: y_start + redo_mask.shape[0],
+                    x_start: x_start + redo_mask.shape[1]] = redo_mask
+                    self._mask_data["outlines"][y_start: y_start + redo_outline.shape[0],
+                    x_start: x_start + redo_outline.shape[1]] = redo_outline
+
+                else:
+                    _, z_start, y_start, x_start, redo_mask, redo_outline = action[1]
+
+                    undo_mask_patch = self._mask_data["masks"][z_start: z_start + redo_mask.shape[0],
+                    y_start: y_start + redo_mask.shape[1],
+                    x_start: x_start + redo_mask.shape[2]].copy()
+                    undo_outline_patch = self._mask_data["outlines"][z_start: z_start + redo_outline.shape[0],
+                    y_start: y_start + redo_outline.shape[1],
+                    x_start: x_start + redo_outline.shape[2]].copy()
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, undo_mask_patch, undo_outline_patch))
+
+                    self._mask_data["masks"][z_start: z_start + redo_mask.shape[0],
+                    y_start: y_start + redo_mask.shape[1],
+                    x_start: x_start + redo_mask.shape[2]] = redo_mask
+                    self._mask_data["outlines"][z_start: z_start + redo_outline.shape[0],
+                    y_start: y_start + redo_outline.shape[1],
+                    x_start: x_start + redo_outline.shape[2]] = redo_outline
+
+                self._undo_stack.append(inverse)
+
+                await self.update_mask_image()
+                self._trigger_background_save()
+                self.on_mask_change(self._image_id, False)
+
             else:
                 raise KeyError("no valid action for redo button")
-
-            if inverse is not None:
-                self._undo_stack.append(inverse)
 
             self._update_undo_redo_buttons()
 
@@ -1154,15 +1234,49 @@ class ImageEditingView(ft.Card):
 
             action = self._undo_stack.pop()
 
-            if action[0] == "delete_action":
-                inverse = await self._async_delete_cell_3D(action[1], is_undo_redo=True)
-            elif action[0] == "draw_action":
-                inverse = await self._async_draw_cell_3D(action[1], is_undo_redo=True)
+            if action[0] == "restore_state":
+                is_3d = action[1][0]
+
+                if not is_3d:  # 2D
+                    _, y_start, x_start, old_mask, old_outline = action[1]
+
+                    redo_mask_patch = self._mask_data["masks"][y_start: y_start + old_mask.shape[0],
+                    x_start: x_start + old_mask.shape[1]].copy()
+                    redo_outline_patch = self._mask_data["outlines"][y_start: y_start + old_outline.shape[0],
+                    x_start: x_start + old_outline.shape[1]].copy()
+                    inverse = ("restore_state", (False, y_start, x_start, redo_mask_patch, redo_outline_patch))
+
+                    self._mask_data["masks"][y_start: y_start + old_mask.shape[0],
+                    x_start: x_start + old_mask.shape[1]] = old_mask
+                    self._mask_data["outlines"][y_start: y_start + old_outline.shape[0],
+                    x_start: x_start + old_outline.shape[1]] = old_outline
+
+                else:
+                    _, z_start, y_start, x_start, old_mask, old_outline = action[1]
+
+                    redo_mask_patch = self._mask_data["masks"][z_start: z_start + old_mask.shape[0],
+                    y_start: y_start + old_mask.shape[1],
+                    x_start: x_start + old_mask.shape[2]].copy()
+                    redo_outline_patch = self._mask_data["outlines"][z_start: z_start + old_outline.shape[0],
+                    y_start: y_start + old_outline.shape[1],
+                    x_start: x_start + old_outline.shape[2]].copy()
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_mask_patch, redo_outline_patch))
+
+                    self._mask_data["masks"][z_start: z_start + old_mask.shape[0],
+                    y_start: y_start + old_mask.shape[1],
+                    x_start: x_start + old_mask.shape[2]] = old_mask
+                    self._mask_data["outlines"][z_start: z_start + old_outline.shape[0],
+                    y_start: y_start + old_outline.shape[1],
+                    x_start: x_start + old_outline.shape[2]] = old_outline
+
+                self._redo_stack.append(inverse)
+
+                await self.update_mask_image()
+                self._trigger_background_save()
+                self.on_mask_change(self._image_id, False)
+
             else:
                 raise KeyError("no valid action for undo button")
-
-            if inverse is not None:
-                self._redo_stack.append(inverse)
 
             self._update_undo_redo_buttons()
 
