@@ -10,7 +10,7 @@ def rgb_to_hex(rgb_color):
     """
     return "#{:02x}{:02x}{:02x}".format(*rgb_color)
 
-def mask_shifting(mask_data,deleted_mask_id:int,slice_id:int|None = None):
+def mask_shifting(mask_data):
     """
     Shifts the mask when a mask got deleted to restore an order without gaps.
 
@@ -22,31 +22,26 @@ def mask_shifting(mask_data,deleted_mask_id:int,slice_id:int|None = None):
     Raises:
           ValueError: if the deleted_mask_id is smaller or equal to 0.
     """
-    if deleted_mask_id < 1:
-        raise ValueError("deleted_mask_id must be greater than 0")
-
     mask = mask_data["masks"]
     outline = mask_data["outlines"]
 
-    if mask.ndim == 3:
-        if slice_id < 0:
-            mask[mask > deleted_mask_id] -= 1
-        else:
-            mask_slice = np.take(mask, slice_id, axis=0).astype(np.uint16)
-            mask_slice[mask_slice>deleted_mask_id] -= 1
-            mask[slice_id, :, :] = mask_slice
-    else:
-        mask[mask > deleted_mask_id] -= 1
+    target_mask = mask
+    target_outline = outline
 
-    if outline.ndim == 3:
-        if slice_id < 0:
-            outline[outline > deleted_mask_id] -= 1
-        else:
-            outline_slice = np.take(outline, slice_id, axis=0).astype(np.uint16)
-            outline_slice[outline_slice>deleted_mask_id] -= 1
-            outline[slice_id, :, :] = outline_slice
-    else:
-        outline[outline>deleted_mask_id] -= 1
+    all_ids = np.unique(np.concatenate([np.unique(target_mask), np.unique(target_outline)]))
+    all_ids = all_ids[all_ids != 0]
+
+    if len(all_ids) == 0 or np.array_equal(all_ids, np.arange(1, len(all_ids) + 1)):
+        return
+
+    max_id = all_ids[-1]
+    lookup = np.arange(max_id + 1, dtype=np.uint16)
+
+    for new_id, old_id in enumerate(all_ids, 1):
+        lookup[old_id] = new_id
+
+    mask_data["masks"] = lookup[mask]
+    mask_data["outlines"] = lookup[outline]
 
 def search_free_id(mask,outline, slice_id):
     """

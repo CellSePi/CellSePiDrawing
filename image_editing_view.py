@@ -1000,6 +1000,10 @@ class ImageEditingView(ft.Card):
                 "outlines": outline
             }
 
+        if self._shifting_check_box.selected:
+            await asyncio.to_thread(mask_shifting, self._mask_data)
+            self._fluorescence_cache.clear()
+
         await self.update_mask_image()
         if not self._mask_image.visible:
             self._mask_image.visible = True
@@ -1132,7 +1136,7 @@ class ImageEditingView(ft.Card):
         # ------
 
         if self._shifting_check_box.selected:
-            await asyncio.to_thread(mask_shifting, self._mask_data, cell_id, self._slice_id)
+            await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
 
         await self.update_mask_image()
