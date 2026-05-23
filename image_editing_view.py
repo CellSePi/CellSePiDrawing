@@ -837,10 +837,6 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = np.take(outline, self._slice_id, axis=0)
 
-        if draw_on_all_slices:
-            mask = mask_3d[0]
-            outline = outline_3d[0]
-
         free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
 
         temp_mask_cell = np.zeros_like(mask, dtype=np.uint8)
