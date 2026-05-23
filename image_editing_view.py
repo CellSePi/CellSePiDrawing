@@ -1060,6 +1060,16 @@ class ImageEditingView(ft.Card):
                 return
             cell_id = cell_id_outline
 
+        unique_ids = np.unique(ids_in_column)
+
+        if len(unique_ids) == 0:
+            return
+
+        mask_data = self._mask_data["masks"]
+        temp_mask_cell = np.zeros_like(mask_data, dtype=np.uint8)
+        for cid in unique_ids:
+            temp_mask_cell |= (mask_data == cid).astype(np.uint8)
+            temp_mask_cell |= (outline_data == cid).astype(np.uint8)
         cell_mask = (self._mask_data["masks"] == cell_id)
         cell_outline = (self._mask_data["outlines"] == cell_id)
         temp_mask_cell = (cell_mask | cell_outline).astype(np.uint8)
