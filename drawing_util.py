@@ -34,14 +34,17 @@ def mask_shifting(mask_data):
     if len(all_ids) == 0 or np.array_equal(all_ids, np.arange(1, len(all_ids) + 1)):
         return
 
+    mapping_dict = {old_id: new_id for new_id, old_id in enumerate(all_ids, 1)}
+
     max_id = all_ids[-1]
     lookup = np.arange(max_id + 1, dtype=np.uint16)
 
-    for new_id, old_id in enumerate(all_ids, 1):
+    for new_id, old_id in mapping_dict.items():
         lookup[old_id] = new_id
 
     mask_data["masks"] = lookup[mask]
     mask_data["outlines"] = lookup[outline]
+    return mapping_dict
 
 def search_free_id(mask,outline, slice_id):
     """
