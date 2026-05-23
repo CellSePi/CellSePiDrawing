@@ -25,7 +25,7 @@ def mask_shifting(mask_data):
     mask = mask_data["masks"]
     outline = mask_data["outlines"]
 
-    all_ids = np.unique(np.concatenate([np.unique(mask), np.unique(outline)]))
+    all_ids = np.unique(outline)
     all_ids = all_ids[all_ids != 0]
 
     if len(all_ids) == 0:
