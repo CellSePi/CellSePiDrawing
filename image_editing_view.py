@@ -84,8 +84,8 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     if has_outline:
         image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
-    encode_params = [cv2.IMWRITE_PNG_COMPRESSION, 1]
-    success, buffer = cv2.imencode('.png', image_mask, encode_params)
+    encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
+    success, buffer = cv2.imencode('.webp', image_mask, encode_params)
 
     return base64.b64encode(buffer).decode('utf-8')
 
@@ -1019,7 +1019,7 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
 
         self._trigger_background_save()
-        self.on_mask_change(self._image_id, is_new_mask)
+        await self.on_mask_change(self._image_id, is_new_mask)
 
     def _delete_cell(self, pos: tuple):
         self.page.run_task(self._task_delete_cell, pos)
@@ -1144,7 +1144,7 @@ class ImageEditingView(ft.Card):
 
         await self.update_mask_image()
         self._trigger_background_save()
-        self.on_mask_change(self._image_id, False)
+        await self.on_mask_change(self._image_id, False)
 
     def _trigger_background_save(self):
         current_path = self._mask_path
@@ -1257,7 +1257,7 @@ class ImageEditingView(ft.Card):
 
                 await self.update_mask_image()
                 self._trigger_background_save()
-                self.on_mask_change(self._image_id, False)
+                await self.on_mask_change(self._image_id, False)
 
             else:
                 raise KeyError("no valid action for redo button")
@@ -1318,7 +1318,7 @@ class ImageEditingView(ft.Card):
 
                 await self.update_mask_image()
                 self._trigger_background_save()
-                self.on_mask_change(self._image_id, False)
+                await self.on_mask_change(self._image_id, False)
 
             else:
                 raise KeyError("no valid action for undo button")
@@ -1458,7 +1458,7 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
             self._show_id_checkbox.update()
             self.page.run_task(self.update_mask_image)
-            self.on_mask_change(self._image_id, True)
+            self.page.run_task(self.on_mask_change,self._image_id, True)
 
     def check_edit_allowed(self):
         if self._edit_allowed and not(self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]):
