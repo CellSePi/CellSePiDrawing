@@ -25,14 +25,14 @@ def mask_shifting(mask_data):
     mask = mask_data["masks"]
     outline = mask_data["outlines"]
 
-    target_mask = mask
-    target_outline = outline
-
-    all_ids = np.unique(np.concatenate([np.unique(target_mask), np.unique(target_outline)]))
+    all_ids = np.unique(np.concatenate([np.unique(mask), np.unique(outline)]))
     all_ids = all_ids[all_ids != 0]
 
-    if len(all_ids) == 0 or np.array_equal(all_ids, np.arange(1, len(all_ids) + 1)):
-        return {}
+    if len(all_ids) == 0:
+        return None
+
+    if all_ids[-1] == len(all_ids):
+        return None
 
     mapping_dict = {old_id: new_id for new_id, old_id in enumerate(all_ids, 1)}
 
