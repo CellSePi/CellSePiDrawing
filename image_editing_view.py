@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import os
 import typing
 from collections import OrderedDict
@@ -10,9 +9,11 @@ import cv2
 import flet as ft
 import numpy as np
 import tifffile
+import time
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
+from media_server import MediaServer
 
 
 def _load_mask_data(path):
@@ -55,11 +56,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
     if image.dtype == np.uint16:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
-    _, buffer = cv2.imencode('.png', image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-    result = base64.b64encode(buffer).decode('utf-8')
-
-
-    return result, shape, check
+    return image, shape, check
 
 def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
     """
@@ -92,10 +89,7 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     if has_outline:
         image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
-    encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
-    success, buffer = cv2.imencode('.webp', image_mask, encode_params)
-
-    return base64.b64encode(buffer).decode('utf-8')
+    return image_mask
 
 
 def _get_cell_id_from_position(position, mask):
@@ -196,9 +190,9 @@ class ImageCache:
 class ImageEditingView(ft.Card):
     def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
+        self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
-
         self._mask_path = None  # Could set a mask_path for TESTING
         self._mask_data = None  # np.load(Path(self._mask_path), allow_pickle=True).item()
         self._slice_id = -1
@@ -527,11 +521,12 @@ class ImageEditingView(ft.Card):
         """
         Updates the main image as base64_image with the new brightness and contrast values.
         """
-        src, shape, img_3d = await self._adjust_image_async(path,
+        data, shape, img_3d = await self._adjust_image_async(path,
                                                             self.brightness,
                                                             self.contrast
                                                             )
-        self._main_image.src = src
+        self.server.update_image(data)
+        self._main_image.src = f"{self.server.base_url}/image?t={time.time()}"
         self._main_image.update()
 
     async def update_main_image_with_brightness_contrast(self, path):
@@ -549,7 +544,7 @@ class ImageEditingView(ft.Card):
         self.cancel_all_tasks()
         image_data = await asyncio.to_thread(self._image_cache.get_image, path)
 
-        src, shape, img_3d = await asyncio.to_thread(
+        data, shape, img_3d = await asyncio.to_thread(
             load_image,
             image_data,
             self.auto_adjust,
@@ -557,7 +552,8 @@ class ImageEditingView(ft.Card):
             self.brightness,
             self.contrast
         )
-        self._main_image.src = src
+        self.server.update_image(image_data)
+        self._main_image.src = f"{self.server.base_url}/image?t={time.time()}"
         self._main_image.visible = True
         self._main_image.update()
         if img_3d:
@@ -665,11 +661,13 @@ class ImageEditingView(ft.Card):
                         self._mask_data = await asyncio.to_thread(_load_mask_data,Path(self._mask_paths[img_id][seg_channel_id]))
                         self._mask_path = new_path
 
-                    self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
+                    data = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
                                                                    self._mask_data["outlines"],
                                                                    self.mask_color, self.outline_color,
                                                                    self.mask_opacity,
                                                                    slice_id=self._slice_id)
+                    self.server.update_mask(data)
+                    self._mask_image.src = f"{self.server.base_url}/mask?t={time.time()}"
                     self._mask_image.update()
                     if not self._mask_image.visible:
                         self._mask_button.icon_color = ft.Colors.WHITE60
@@ -729,8 +727,9 @@ class ImageEditingView(ft.Card):
             return
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
-        self._mask_image.src = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
+        data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
                                                        self.outline_color, self.mask_opacity, self._slice_id)
+        self._mask_image.src = f"{self.server.base_url}/mask?t={time.time()}"
         self._mask_image.update()
         if not self._mask_image.visible:
             self._mask_button.icon_color = ft.Colors.WHITE60

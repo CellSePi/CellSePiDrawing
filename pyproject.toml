@@ -13,7 +13,9 @@ dependencies = [
     "pillow==12.2.0",
     "tifffile>=2026.3.3",
     "numpy==2.1.0",
-    "opencv-python-headless==4.13.0.92"
+    "opencv-python-headless==4.13.0.92",
+    "uvicorn==0.40.0",
+    "fastapi==0.135.4"
 ]
 
 [tool.setuptools]
