@@ -1032,8 +1032,8 @@ class ImageEditingView(ft.Card):
                 self._show_id_checkbox.icon_color = ft.Colors.WHITE_60
             self._show_id_checkbox.update()
 
-        self._trigger_background_save()
-        await self.on_mask_change(self._image_id, is_new_mask)
+        self._trigger_background_save(is_new_mask)
+
 
     def _delete_cell(self, pos: tuple):
         self.page.run_task(self._task_delete_cell, pos)
@@ -1142,29 +1142,24 @@ class ImageEditingView(ft.Card):
             self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
                 self._slice_id if self._slice_id != -1 else None].pop(cell_id)
 
-        # ------
-
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
             inverse_action = (inverse_action, mapping)
         else:
             inverse_action = (inverse_action, None)
-
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
         self._update_undo_redo_buttons()
-
         await self.update_mask_image()
         self._trigger_background_save()
-        await self.on_mask_change(self._image_id, False)
 
-    def _trigger_background_save(self):
+    def _trigger_background_save(self,is_new_mask=False):
         current_path = self._mask_path
         current_data = self._mask_data
-        self.page.run_task(self._save_async,current_path,current_data)
+        self.page.run_task(self._save_async,current_path,current_data,is_new_mask)
 
-    async def _save_async(self,current_path,current_data):
+    async def _save_async(self,current_path,current_data,is_new_mask):
         if current_path is None or current_data is None:
             return
 
@@ -1178,6 +1173,7 @@ class ImageEditingView(ft.Card):
 
         async with self._save_lock:
             await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+        await self.on_mask_change(self._image_id, is_new_mask)
 
     def delete_mask(self):
         def cancel_dialog(a):
@@ -1270,7 +1266,6 @@ class ImageEditingView(ft.Card):
 
                 await self.update_mask_image()
                 self._trigger_background_save()
-                await self.on_mask_change(self._image_id, False)
 
             else:
                 raise KeyError("no valid action for redo button")
@@ -1331,7 +1326,6 @@ class ImageEditingView(ft.Card):
 
                 await self.update_mask_image()
                 self._trigger_background_save()
-                await self.on_mask_change(self._image_id, False)
 
             else:
                 raise KeyError("no valid action for undo button")
