@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 import typing
 from collections import OrderedDict
