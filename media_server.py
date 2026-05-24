@@ -29,7 +29,6 @@ class MediaServer:
         self.port = 0
         self._server_thread = None
         self._image = None
-        self._mask_update_data = None
 
         self.app.get("/image")(self._get_image_endpoint)
         self._initialized = True
