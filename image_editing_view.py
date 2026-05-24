@@ -19,8 +19,10 @@ from media_server import MediaServer
 
 def _load_mask_data(path):
     data = np.load(path, allow_pickle=True).item()
-    data["masks"] = data["masks"].astype(np.uint16)
-    data["outlines"] = data["outlines"].astype(np.uint16)
+    if data["masks"].dtype != np.uint16:
+        data["masks"] = data["masks"].astype(np.uint16, copy=False)
+    if data["outlines"].dtype != np.uint16:
+        data["outlines"] = data["outlines"].astype(np.uint16, copy=False)
     return data
 
 def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
