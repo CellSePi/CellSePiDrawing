@@ -58,40 +58,6 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
 
     return image, shape, check
 
-def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
-    """
-    handles the conversion of the given file data
-
-    Args:
-        mask= the mask data stored in the numpy directory
-        outline= the outline data stored in the numpy directory
-    """
-    if mask.ndim == 3:  # if 3d get the given slice or get a max projection
-        mask_slice = mask[slice_id] if slice_id >= 0 else mask.any(axis=0)
-        outline_slice = outline[slice_id] if slice_id >= 0 else outline.any(axis=0)
-    else:  # 2d nothing to do
-        mask_slice = mask
-        outline_slice = outline
-
-    # filter values greater than 0
-    mask_bool = mask_slice > 0
-    outline_bool = outline_slice > 0
-
-    has_mask = mask_bool.any()
-    has_outline = outline_bool.any()
-
-    image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
-                          dtype=np.uint8)  # uint8 because here we dont use the cell_id's
-
-    if has_mask:
-        image_mask[mask_bool] = (mask_color[2], mask_color[1], mask_color[0], opacity)
-
-    if has_outline:
-        image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
-
-    return image_mask
-
-
 def _get_cell_id_from_position(position, mask):
     """
     Get the cell ID from the clicked position.
@@ -661,12 +627,14 @@ class ImageEditingView(ft.Card):
                         self._mask_data = await asyncio.to_thread(_load_mask_data,Path(self._mask_paths[img_id][seg_channel_id]))
                         self._mask_path = new_path
 
-                    data = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
-                                                                   self._mask_data["outlines"],
-                                                                   self.mask_color, self.outline_color,
-                                                                   self.mask_opacity,
-                                                                   slice_id=self._slice_id)
-                    self.server.update_mask(data)
+                    self.server.update_mask((
+                        self._mask_data["masks"],
+                        self._mask_data["outlines"],
+                        self.mask_color,
+                        self.outline_color,
+                        self.mask_opacity,
+                        self._slice_id
+                    ))
                     self._mask_image.src = f"{self.server.base_url}/mask?t={time.time()}"
                     self._mask_image.update()
                     if not self._mask_image.visible:
@@ -725,11 +693,14 @@ class ImageEditingView(ft.Card):
     async def _async_update_mask_image(self):
         if self._mask_data is None:
             return
-        mask = self._mask_data["masks"]
-        outline = self._mask_data["outlines"]
-        data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
-                                                       self.outline_color, self.mask_opacity, self._slice_id)
-        self.server.update_mask(data)
+        self.server.update_mask((
+            self._mask_data["masks"],
+            self._mask_data["outlines"],
+            self.mask_color,
+            self.outline_color,
+            self.mask_opacity,
+            self._slice_id
+        ))
         self._mask_image.src = f"{self.server.base_url}/mask?t={time.time()}"
         self._mask_image.update()
         if not self._mask_image.visible:
@@ -1449,6 +1420,8 @@ class ImageEditingView(ft.Card):
 
     def reset_mask(self):
         if self._mask_path is not None:
+            if os.path.exists(self._mask_path):  # ← fehlt
+                os.remove(self._mask_path)
             if self._mask_paths and self._image_id in self._mask_paths:
                 self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
             self._mask_path = None
