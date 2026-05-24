@@ -41,7 +41,8 @@ class MediaServer:
         return Response(content=buffer.tobytes(), media_type="image/png")
 
     def _get_mask_endpoint(self):
-        if self._mask is None: return Response(status_code=404)
+        if self._mask is None:
+            return Response(status_code=404)
         _, buffer = cv2.imencode('.webp', self._mask, [cv2.IMWRITE_WEBP_QUALITY, 101])
         return Response(content=buffer.tobytes(),media_type="image/webp")
 

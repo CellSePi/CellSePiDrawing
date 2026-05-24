@@ -552,7 +552,7 @@ class ImageEditingView(ft.Card):
             self.brightness,
             self.contrast
         )
-        self.server.update_image(image_data)
+        self.server.update_image(data)
         self._main_image.src = f"{self.server.base_url}/image?t={time.time()}"
         self._main_image.visible = True
         self._main_image.update()
@@ -729,6 +729,7 @@ class ImageEditingView(ft.Card):
         outline = self._mask_data["outlines"]
         data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
                                                        self.outline_color, self.mask_opacity, self._slice_id)
+        self.server.update_mask(data)
         self._mask_image.src = f"{self.server.base_url}/mask?t={time.time()}"
         self._mask_image.update()
         if not self._mask_image.visible:
