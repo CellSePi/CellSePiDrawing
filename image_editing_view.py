@@ -131,7 +131,7 @@ def get_bbox_2d(mask_array):
     )
 
 class FluorescenceCache:
-    def __init__(self, max_values=20):
+    def __init__(self, max_values=1000): #1.000 Values: ~380 KB (0,38 MB)
         self.fluorescence_cache = OrderedDict()
         self._max_values = max_values
 
@@ -516,22 +516,30 @@ class ImageEditingView(ft.Card):
             task.cancel()
         self._running_tasks.clear()
 
-    async def _adjust_image_async(self, path, brightness, contrast):
-        image_data = await asyncio.to_thread(self._image_cache.get_image, path)
-        return await asyncio.to_thread(load_image, image_data, False, self._slice_id, brightness,
-                                       contrast)
-
     async def _update_main_image(self, path):
         """
-        Updates the main image as base64_image with the new brightness and contrast values.
+        Updates the main image with the new brightness and contrast values.
         """
-        data, shape, img_3d = await self._adjust_image_async(path,
-                                                            self.brightness,
-                                                            self.contrast
-                                                            )
-        self.server.update_image(data)
+        keys = (path, self.auto_adjust, self._slice_id, self.brightness, self.contrast)
+
+        entry = self.server.get_cached_entry(keys)
+
+        if entry:
+            shape = entry["shape"]
+            img_3d = entry["is_3d"]
+            self.server.update_image(self.server._image, keys, shape, img_3d)
+        else:
+            image_data = await asyncio.to_thread(self._image_cache.get_image, path)
+            data, shape, img_3d = await asyncio.to_thread(
+                load_image, image_data, self.auto_adjust, self._slice_id, self.brightness, self.contrast
+            )
+            self.server.update_image(data, keys, shape, img_3d)
+
         self._main_image.src = f"{self.server.base_url}/image?t={time.time()}"
+        self._main_image.visible = True
         self._main_image.update()
+
+        return shape,img_3d
 
     async def update_main_image_with_brightness_contrast(self, path):
         task = asyncio.create_task(self._update_main_image(path))
@@ -546,20 +554,8 @@ class ImageEditingView(ft.Card):
 
     async def _load_main_image_with_path(self, path):
         self.cancel_all_tasks()
-        image_data = await asyncio.to_thread(self._image_cache.get_image, path)
+        shape,img_3d = await self._update_main_image(path)
 
-        data, shape, img_3d = await asyncio.to_thread(
-            load_image,
-            image_data,
-            self.auto_adjust,
-            self._slice_id,
-            self.brightness,
-            self.contrast
-        )
-        self.server.update_image(data)
-        self._main_image.src = f"{self.server.base_url}/image?t={time.time()}"
-        self._main_image.visible = True
-        self._main_image.update()
         if img_3d:
             self._redo_stack = deque(maxlen=self._3d_max_history)
             self._undo_stack = deque(maxlen=self._3d_max_history)
