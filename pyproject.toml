@@ -15,7 +15,8 @@ dependencies = [
     "numpy==2.1.0",
     "opencv-python-headless==4.13.0.92",
     "uvicorn==0.40.0",
-    "fastapi==0.135.4"
+    "fastapi==0.135.4",
+    "lz4==4.4.5"
 ]
 
 [tool.setuptools]

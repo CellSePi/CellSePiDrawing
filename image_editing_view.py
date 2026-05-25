@@ -11,6 +11,7 @@ import flet as ft
 import numpy as np
 import tifffile
 import time
+import lz4.frame
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
@@ -242,7 +243,7 @@ class ImageEditingView(ft.Card):
         self.on_mask_change = on_mask_change or (lambda y, x: None)
         self.mask_suffix = "_seg"
         self.expand = True
-        self._3d_max_history = 10
+        self._3d_max_history = 20
         self._2d_max_history = 20
         self._redo_stack = deque(maxlen=self._2d_max_history)
         self._undo_stack = deque(maxlen=self._2d_max_history)
@@ -254,11 +255,11 @@ class ImageEditingView(ft.Card):
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
-        self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK12,
+        self._mask_button = ft.IconButton(icon=ft.Icons.REMOVE_RED_EYE, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
                                           on_click=self._show_mask,
-                                          tooltip="Show Mask", hover_color=ft.Colors.WHITE12, disabled=True)
+                                          tooltip="Show Mask", hover_color=ft.Colors.WHITE_12, disabled=True)
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
@@ -267,12 +268,12 @@ class ImageEditingView(ft.Card):
         self._delete_button = ft.IconButton(icon=ft.Icons.CLEAR, icon_color=ft.Colors.BLACK_12,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
-                                            tooltip="Delete mode", hover_color=ft.Colors.WHITE12,
+                                            tooltip="Delete mode", hover_color=ft.Colors.WHITE_12,
                                             on_click=self._toggle_delete)
         self._delete_mask_button = ft.IconButton(icon=ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.WHITE_60,
                                                  style=ft.ButtonStyle(
                                                      shape=ft.RoundedRectangleBorder(radius=12), ),
-                                                 tooltip="Delete the complete mask", hover_color=ft.Colors.WHITE12,
+                                                 tooltip="Delete the complete mask", hover_color=ft.Colors.WHITE_12,
                                                  on_click=lambda e: self.delete_mask())
         self._redo_button = ft.IconButton(icon=ft.Icons.REDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
@@ -283,7 +284,7 @@ class ImageEditingView(ft.Card):
         self._undo_button = ft.IconButton(icon=ft.Icons.UNDO_SHARP, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
-                                          tooltip="Undo action", hover_color=ft.Colors.WHITE12,
+                                          tooltip="Undo action", hover_color=ft.Colors.WHITE_12,
                                           on_click=self.undo_stack, disabled=True)
 
         # controls for visible cell id and value, when hovered over the cell mask
@@ -292,7 +293,7 @@ class ImageEditingView(ft.Card):
             icon_color=ft.Colors.BLACK_12,
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12), ),
-            hover_color=ft.Colors.WHITE12,
+            hover_color=ft.Colors.WHITE_12,
             selected=False,
             disabled=True,
             on_click=self._toggle_cell_info,
@@ -324,14 +325,14 @@ class ImageEditingView(ft.Card):
         self._slider_2_5d = ft.Slider(
             min=0, max=100, divisions=None, label="Slice: {value}", value=0,
             opacity=1.0 if self._user_2_5d else 0.0, height=20, width=170,
-            active_color=ft.Colors.WHITE60, thumb_color=ft.Colors.WHITE, disabled=True,
+            active_color=ft.Colors.WHITE_60, thumb_color=ft.Colors.WHITE, disabled=True,
             animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.LINEAR_TO_EASE_OUT),
             on_change=self._slider2_5d_change
         )
         self._slider_2d = ft.CupertinoSlidingSegmentedButton(
             selected_index=0 if not self._user_2_5d else 1,
             thumb_color=ft.Colors.WHITE,
-            bgcolor=ft.Colors.WHITE60,
+            bgcolor=ft.Colors.WHITE_60,
             padding=ft.Padding.symmetric(vertical=0, horizontal=0),
             controls=[
                 ft.Text("2D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
@@ -340,10 +341,10 @@ class ImageEditingView(ft.Card):
             on_change=self._slider2d_update
         )
         self._shifting_check_box = ft.IconButton(
-            icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE60),
+            icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE_60),
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=12), ),
-            hover_color=ft.Colors.WHITE12,
+            hover_color=ft.Colors.WHITE_12,
             selected_icon=ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, color=ft.Colors.WHITE),
             selected=False,
             on_click=self._toggle_shifting,
@@ -415,9 +416,9 @@ class ImageEditingView(ft.Card):
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
         self._mask_button.tooltip = "Show mask"
-        self._mask_button.icon_color = ft.Colors.BLACK12
+        self._mask_button.icon_color = ft.Colors.BLACK_12
         self._mask_button.disabled = True
-        self._edit_button.icon_color = ft.Colors.BLACK12
+        self._edit_button.icon_color = ft.Colors.BLACK_12
         self._edit_button.disabled = True
         self._delete_button.icon_color = ft.Colors.BLACK_12
         self._delete_button.disabled = True
@@ -585,11 +586,11 @@ class ImageEditingView(ft.Card):
             self._image_3d = True
             if self._slider_2_5d.opacity == 1.0 and self.check_edit_allowed():
                 if self._edit_button.disabled:
-                    self._edit_button.icon_color = ft.Colors.WHITE60
+                    self._edit_button.icon_color = ft.Colors.WHITE_60
                     self._edit_button.disabled = False
                     self._edit_button.update()
                 if self._delete_button.disabled:
-                    self._delete_button.icon_color = ft.Colors.WHITE60
+                    self._delete_button.icon_color = ft.Colors.WHITE_60
                     self._delete_button.disabled = False
                     self._delete_button.update()
                 if not self._mask_button.disabled:
@@ -611,11 +612,11 @@ class ImageEditingView(ft.Card):
             else:
                 if self.check_edit_allowed():
                     if self._edit_button.disabled:
-                        self._edit_button.icon_color = ft.Colors.WHITE60
+                        self._edit_button.icon_color = ft.Colors.WHITE_60
                         self._edit_button.disabled = False
                         self._edit_button.update()
                     if self._delete_button.disabled:
-                        self._delete_button.icon_color = ft.Colors.WHITE60
+                        self._delete_button.icon_color = ft.Colors.WHITE_60
                         self._delete_button.disabled = False
                         self._delete_button.update()
                 else:
@@ -650,11 +651,11 @@ class ImageEditingView(ft.Card):
             self._image_3d = False
             if self.check_edit_allowed():
                 if self._edit_button.disabled:
-                    self._edit_button.icon_color = ft.Colors.WHITE60
+                    self._edit_button.icon_color = ft.Colors.WHITE_60
                     self._edit_button.disabled = False
                     self._edit_button.update()
                 if self._delete_button.disabled:
-                    self._delete_button.icon_color = ft.Colors.WHITE60
+                    self._delete_button.icon_color = ft.Colors.WHITE_60
                     self._delete_button.disabled = False
                     self._delete_button.update()
             else:
@@ -691,7 +692,7 @@ class ImageEditingView(ft.Card):
                     self._mask_image.src = data
                     self._mask_image.update()
                     if not self._mask_image.visible:
-                        self._mask_button.icon_color = ft.Colors.WHITE60
+                        self._mask_button.icon_color = ft.Colors.WHITE_60
                         self._mask_button.tooltip = "Show mask"
                         self._mask_button.disabled = False
                         self._mask_button.update()
@@ -703,7 +704,7 @@ class ImageEditingView(ft.Card):
         self._mask_image.visible = False
         self._mask_image.update()
         self._mask_button.tooltip = "Show mask"
-        self._mask_button.icon_color = ft.Colors.BLACK12
+        self._mask_button.icon_color = ft.Colors.BLACK_12
         self._mask_button.disabled = True
         self._mask_button.update()
 
@@ -723,7 +724,7 @@ class ImageEditingView(ft.Card):
             self._mask_image.visible = False
             self._mask_image.update()
             self._mask_button.tooltip = "Show mask"
-            self._mask_button.icon_color = ft.Colors.BLACK12
+            self._mask_button.icon_color = ft.Colors.BLACK_12
             self._mask_button.disabled = True
             self._mask_button.update()
 
@@ -753,7 +754,7 @@ class ImageEditingView(ft.Card):
         self._mask_image.src = data
         self._mask_image.update()
         if not self._mask_image.visible:
-            self._mask_button.icon_color = ft.Colors.WHITE60
+            self._mask_button.icon_color = ft.Colors.WHITE_60
             self._mask_button.tooltip = "Show mask"
             self._mask_button.disabled = False
             self._mask_button.update()
@@ -761,26 +762,26 @@ class ImageEditingView(ft.Card):
     async def _show_mask(self, e):
         self._mask_image.visible = not self._mask_image.visible
         self._mask_image.update()
-        self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE60
+        self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE_60
         self._mask_button.tooltip = "Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
 
     async def _toggle_draw(self, e):
-        self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
+        self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE_60
         self._edit_button.update()
         if self._edit_button.icon_color == ft.Colors.WHITE:
-            self._delete_button.icon_color = ft.Colors.WHITE60
+            self._delete_button.icon_color = ft.Colors.WHITE_60
             self._delete_button.update()
             self.drawing_tool.draw()
         else:
             self.drawing_tool.deactivate_drawing()
 
     async def _toggle_delete(self, e):
-        self._delete_button.icon_color = ft.Colors.WHITE if self._delete_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE60
+        self._delete_button.icon_color = ft.Colors.WHITE if self._delete_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE_60
         self._delete_button.update()
         if self._delete_button.icon_color == ft.Colors.WHITE:
             if not self._edit_button.disabled:
-                self._edit_button.icon_color = ft.Colors.WHITE60
+                self._edit_button.icon_color = ft.Colors.WHITE_60
                 self._edit_button.update()
                 self.drawing_tool.delete()
         else:
@@ -891,8 +892,12 @@ class ImageEditingView(ft.Card):
             return
 
         if not self._image_3d:
-            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (False, y_min, x_min, old_patch))
+            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
+            contiguos_patch = np.ascontiguousarray(old_patch)
+            compressed_patch = lz4.frame.compress(contiguos_patch)
+
+            patch_shape = contiguos_patch.shape
+            inverse_action = ("restore_state", (False, y_min, x_min, compressed_patch, patch_shape))
         else:
             if draw_on_all_slices:
                 z_min = 0
@@ -900,9 +905,12 @@ class ImageEditingView(ft.Card):
             else:
                 z_min = self._slice_id
                 z_max = self._slice_id + 1
+            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+            contiguos_patch = np.ascontiguousarray(old_patch)
+            compressed_patch = lz4.frame.compress(contiguos_patch)
 
-            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_patch))
+            patch_shape = contiguos_patch.shape
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
 
         kernel = np.ones((3, 3), dtype=np.uint8)
         inner_pixels = cv2.erode(temp_mask_patch, kernel)
@@ -1119,8 +1127,12 @@ class ImageEditingView(ft.Card):
 
         if not self._image_3d:
             y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
-            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (False, y_min, x_min, old_patch))
+            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
+            contiguos_patch = np.ascontiguousarray(old_patch)
+            compressed_patch = lz4.frame.compress(contiguos_patch)
+
+            patch_shape = contiguos_patch.shape
+            inverse_action = ("restore_state", (False, y_min, x_min, compressed_patch,patch_shape))
             mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max]
             cell_mask = (mask_patch == cell_id)
@@ -1130,8 +1142,12 @@ class ImageEditingView(ft.Card):
 
         else:
             z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
-            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_patch))
+            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+            contiguos_patch = np.ascontiguousarray(old_patch)
+            compressed_patch = lz4.frame.compress(contiguos_patch)
+
+            patch_shape = contiguos_patch.shape
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
             mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
@@ -1251,28 +1267,34 @@ class ImageEditingView(ft.Card):
                 is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask = data
+                    _, y_start, x_start, compressed_patch, patch_shape = data
 
+                    decompressed_bytes = lz4.frame.decompress(compressed_patch)
+                    old_mask = np.frombuffer(decompressed_bytes, dtype=np.uint16).reshape(patch_shape)
                     old_outline = get_outline_from_mask(old_mask)
 
-                    redo_patch = self._mask_data["masks"][
-                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
+                    redo_patch = np.ascontiguousarray(self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]])
+                    redo_compressed = lz4.frame.compress(redo_patch)
 
                     self._mask_data["masks"][
                         y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
                     self._mask_data["outlines"][
                         y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
 
-                    inverse = ("restore_state", (False, y_start, x_start, redo_patch))
+                    inverse = ("restore_state", (False, y_start, x_start, redo_compressed,patch_shape))
                 else:
-                    _, z_start, y_start, x_start, old_mask = data
+                    _, z_start, y_start, x_start, compressed_patch, patch_shape = data
 
+                    decompressed_bytes = lz4.frame.decompress(compressed_patch)
+                    old_mask = np.frombuffer(decompressed_bytes, dtype=np.uint16).reshape(patch_shape)
                     old_outline = get_outline_from_mask(old_mask)
 
-                    redo_patch = self._mask_data["masks"][
+                    redo_patch = np.ascontiguousarray(self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
                                                                                                              old_mask.shape[
-                                                                                                                 2]].copy()
+                                                                                                                 2]])
+                    redo_compressed = lz4.frame.compress(redo_patch)
 
                     self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
@@ -1282,7 +1304,7 @@ class ImageEditingView(ft.Card):
                         z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
                             1], x_start: x_start + old_outline.shape[2]] = old_outline
 
-                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_patch))
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_compressed,patch_shape))
 
                 self._undo_stack.append((inverse, mapping))
 
@@ -1324,29 +1346,34 @@ class ImageEditingView(ft.Card):
                 is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask = data
+                    _, y_start, x_start, compressed_patch, patch_shape = data
 
+                    decompressed_bytes = lz4.frame.decompress(compressed_patch)
+                    old_mask = np.frombuffer(decompressed_bytes, dtype=np.uint16).reshape(patch_shape)
                     old_outline = get_outline_from_mask(old_mask)
 
-                    redo_patch = self._mask_data["masks"][
-                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
+                    redo_patch = np.ascontiguousarray(self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]])
 
+                    redo_compressed = lz4.frame.compress(redo_patch)
                     self._mask_data["masks"][
                         y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
                     self._mask_data["outlines"][
                         y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
 
-                    inverse = ("restore_state", (False, y_start, x_start, redo_patch))
+                    inverse = ("restore_state", (False, y_start, x_start, redo_compressed,patch_shape))
                 else:
-                    _, z_start, y_start, x_start, old_mask = data
+                    _, z_start, y_start, x_start, compressed_patch, patch_shape = data
 
+                    decompressed_bytes = lz4.frame.decompress(compressed_patch)
+                    old_mask = np.frombuffer(decompressed_bytes, dtype=np.uint16).reshape(patch_shape)
                     old_outline = get_outline_from_mask(old_mask)
 
-                    redo_patch = self._mask_data["masks"][
+                    redo_patch = np.ascontiguousarray(self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
                                                                                                              old_mask.shape[
-                                                                                                                 2]].copy()
-
+                                                                                                                 2]])
+                    redo_compressed = lz4.frame.compress(redo_patch)
                     self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
                                                                                                              old_mask.shape[
@@ -1355,7 +1382,7 @@ class ImageEditingView(ft.Card):
                         z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
                             1], x_start: x_start + old_outline.shape[2]] = old_outline
 
-                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_patch))
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_compressed,patch_shape))
 
                 self._redo_stack.append((inverse, mapping))
 
@@ -1469,7 +1496,7 @@ class ImageEditingView(ft.Card):
 
     def disable_editing_without_update(self):
         self._edit_allowed = False
-        self._edit_button.icon_color = ft.Colors.BLACK12
+        self._edit_button.icon_color = ft.Colors.BLACK_12
         self._edit_button.disabled = True
         self.drawing_tool.deactivate_drawing()
         self._delete_button.icon_color = ft.Colors.BLACK_12

@@ -13,7 +13,7 @@ def _find_free_port():
 
 
 class RenderedBytesCache:
-    def __init__(self, max_items=100):
+    def __init__(self, max_items=50):
         self.cache = OrderedDict()
         self._max_items = max_items
         self.lock = threading.Lock()
