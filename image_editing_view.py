@@ -76,21 +76,11 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
         mask_slice = mask
         outline_slice = outline
 
-    # filter values greater than 0
-    mask_bool = mask_slice > 0
-    outline_bool = outline_slice > 0
-
-    has_mask = mask_bool.any()
-    has_outline = outline_bool.any()
-
     image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
                           dtype=np.uint8)  # uint8 because here we dont use the cell_id's
 
-    if has_mask:
-        image_mask[mask_bool] = (mask_color[2], mask_color[1], mask_color[0], opacity)
-
-    if has_outline:
-        image_mask[outline_bool] = (outline_color[2], outline_color[1], outline_color[0], 255)
+    image_mask[mask_slice > 0]    = (mask_color[2],    mask_color[1],    mask_color[0],    opacity)
+    image_mask[outline_slice > 0] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
     encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
     success, buffer = cv2.imencode('.webp', image_mask, encode_params)
@@ -770,7 +760,7 @@ class ImageEditingView(ft.Card):
         e.control.selected = not e.control.selected
         e.control.update()
 
-    async def _toggle_cell_info(self):
+    async def _toggle_cell_info(self, e):
         self._show_id_checkbox.selected = not self._show_id_checkbox.selected
         if not self._mask_button.disabled and self._show_id_checkbox.selected:
             self.drawing_tool.show_cell_info()
@@ -839,12 +829,12 @@ class ImageEditingView(ft.Card):
         if mask.ndim == 3 and not draw_on_all_slices:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            mask = np.take(mask, self._slice_id, axis=0)
+            mask = mask[self._slice_id]
 
         if outline.ndim == 3 and not draw_on_all_slices:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
-            outline = np.take(outline, self._slice_id, axis=0)
+            outline = outline[self._slice_id]
 
         free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
 
@@ -1348,8 +1338,8 @@ class ImageEditingView(ft.Card):
 
         # load fluorescence value from cache
 
-        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2D", self._channel_id,
+        cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask,
+            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "2D", self._channel_id,
                                                                      self._slice_id)
 
         # show id and value in canvas
@@ -1381,8 +1371,8 @@ class ImageEditingView(ft.Card):
                 self._id_info.update()
                 return
 
-            cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask, np.array(
-                self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "2.5D",
+            cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask,
+                self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "2.5D",
                                                                          self._channel_id, self._slice_id)
             values = [ft.DataRow(
                 cells=[
@@ -1397,8 +1387,8 @@ class ImageEditingView(ft.Card):
             values = []
             for cellid in cell_id:
                 if cellid != 0:
-                    cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask, np.array(
-                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id])), "3D",
+                    cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask,
+                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "3D",
                                                                                  self._channel_id, self._slice_id)
 
                     values.append(
