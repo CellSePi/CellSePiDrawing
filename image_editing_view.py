@@ -17,6 +17,37 @@ from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 from media_server import MediaServer
 
 
+def get_outline_from_mask(mask_data):
+    if mask_data.ndim == 3:
+        outline = np.zeros_like(mask_data, dtype=np.uint16)
+        for z in range(mask_data.shape[0]):
+            outline[z] = _process_2d_slice(mask_data[z])
+        return outline
+    else:
+        return _process_2d_slice(mask_data)
+
+
+def _process_2d_slice(mask_slice):
+    outline = np.zeros_like(mask_slice, dtype=np.uint16)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+    unique_ids = np.unique(mask_slice)
+    for cid in unique_ids:
+        if cid == 0: continue
+
+        cell_mask = (mask_slice == cid).astype(np.uint8)
+
+        # expand the mask of 1 pixel
+        dilated = cv2.dilate(cell_mask, kernel, iterations=1)
+
+        # every pixel that was added with dilated is the outline
+        cell_outline = (dilated - cell_mask) * cid
+
+        outline += cell_outline.astype(np.uint16)
+
+    return outline
+
+
 def _load_mask_data(path):
     data = np.load(path, allow_pickle=True).item()
     if data["masks"].dtype != np.uint16:
@@ -45,7 +76,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=0)
 
     if auto_adjust:
-        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX,dtype=cv_target_dtype)
+        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX, dtype=cv_target_dtype)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
@@ -79,7 +110,7 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
                           dtype=np.uint8)  # uint8 because here we dont use the cell_id's
 
-    image_mask[mask_slice > 0]    = (mask_color[2],    mask_color[1],    mask_color[0],    opacity)
+    image_mask[mask_slice > 0] = (mask_color[2], mask_color[1], mask_color[0], opacity)
     image_mask[outline_slice > 0] = (outline_color[2], outline_color[1], outline_color[0], 255)
 
     encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
@@ -95,7 +126,7 @@ def _get_cell_id_from_position(position, mask):
     x, y = int(position[0]), int(position[1])
     if mask.ndim == 3:
         if 0 <= y < mask.shape[1] and 0 <= x < mask.shape[2]:
-            return mask[:,y, x]
+            return mask[:, y, x]
         return None
     else:
         if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1]:
@@ -217,9 +248,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack = deque(maxlen=self._2d_max_history)
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True,left=0, right=0, top=0, bottom=0)
+                                    expand=True, left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True,left=0, right=0, top=0, bottom=0)
+                                    expand=True, left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -301,7 +332,7 @@ class ImageEditingView(ft.Card):
             selected_index=0 if not self._user_2_5d else 1,
             thumb_color=ft.Colors.WHITE,
             bgcolor=ft.Colors.WHITE60,
-            padding=ft.Padding.symmetric(vertical=0,horizontal=0),
+            padding=ft.Padding.symmetric(vertical=0, horizontal=0),
             controls=[
                 ft.Text("2D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
                 ft.Text("2.5D", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD)
@@ -531,7 +562,7 @@ class ImageEditingView(ft.Card):
         self._main_image.visible = True
         self._main_image.update()
 
-        return shape,img_3d
+        return shape, img_3d
 
     async def update_main_image_with_brightness_contrast(self, path):
         task = asyncio.create_task(self._update_main_image(path))
@@ -543,10 +574,9 @@ class ImageEditingView(ft.Card):
         finally:
             self._running_tasks.discard(task)
 
-
     async def _load_main_image_with_path(self, path):
         self.cancel_all_tasks()
-        shape,img_3d = await self._update_main_image(path)
+        shape, img_3d = await self._update_main_image(path)
 
         if img_3d:
             self._redo_stack = deque(maxlen=self._3d_max_history)
@@ -643,21 +673,21 @@ class ImageEditingView(ft.Card):
             self._slider_2_5d.disabled = True
             self._slider_2_5d.update()
 
-
     async def _load_mask_image(self, img_id, seg_channel_id):
         if self._mask_paths is not None:
             if img_id in self._mask_paths:
                 if seg_channel_id in self._mask_paths[img_id]:
                     new_path = self._mask_paths[img_id][seg_channel_id]
                     if new_path != self._mask_path:
-                        self._mask_data = await asyncio.to_thread(_load_mask_data,Path(self._mask_paths[img_id][seg_channel_id]))
+                        self._mask_data = await asyncio.to_thread(_load_mask_data,
+                                                                  Path(self._mask_paths[img_id][seg_channel_id]))
                         self._mask_path = new_path
 
                     data = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
-                                                                   self._mask_data["outlines"],
-                                                                   self.mask_color, self.outline_color,
-                                                                   self.mask_opacity,
-                                                                   slice_id=self._slice_id)
+                                                   self._mask_data["outlines"],
+                                                   self.mask_color, self.outline_color,
+                                                   self.mask_opacity,
+                                                   slice_id=self._slice_id)
                     self._mask_image.src = data
                     self._mask_image.update()
                     if not self._mask_image.visible:
@@ -719,7 +749,7 @@ class ImageEditingView(ft.Card):
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
         data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
-                                                       self.outline_color, self.mask_opacity, self._slice_id)
+                                       self.outline_color, self.mask_opacity, self._slice_id)
         self._mask_image.src = data
         self._mask_image.update()
         if not self._mask_image.visible:
@@ -825,7 +855,6 @@ class ImageEditingView(ft.Card):
                 self._slice_id == -1
         )
 
-
         if mask.ndim == 3 and not draw_on_all_slices:
             if self._slice_id < 0:
                 raise ValueError("slice_id should be non-negative")
@@ -836,30 +865,34 @@ class ImageEditingView(ft.Card):
                 raise ValueError("slice_id should be non-negative")
             outline = outline[self._slice_id]
 
-        free_id = await asyncio.to_thread(search_free_id, mask, outline, self._slice_id)  # search for the next free id in mask and outline
+        free_id = await asyncio.to_thread(search_free_id, mask, outline,
+                                          self._slice_id)  # search for the next free id in mask and outline
 
-        temp_mask_cell = np.zeros_like(mask[0] if draw_on_all_slices else mask, dtype=np.uint8)
-        # add the outline of the new mask (only the parts which not overlap with already existing cells) to outline npy array and fill the complete outline to new_cell_outline to calculate inner pixels
         pts = np.array([[l[0][0], l[0][1]] for l in lines_data], dtype=np.int32)
-        cv2.fillPoly(temp_mask_cell, [pts], 1)
 
-        if not np.any(temp_mask_cell):
+        x_min, y_min = np.min(pts, axis=0)
+        x_max, y_max = np.max(pts, axis=0)
+
+        image_width, image_height = self.drawing_tool.get_bounds()
+        padding = 3
+        y_min = max(0, y_min - padding)
+        x_min = max(0, x_min - padding)
+        y_max = min(image_height, y_max + padding)
+        x_max = min(image_width, x_max + padding)
+
+        patch_height = y_max - y_min
+        patch_width = x_max - x_min
+
+        temp_mask_patch = np.zeros((patch_height, patch_width), dtype=np.uint8)
+        local_pts = pts - [x_min, y_min]
+        cv2.fillPoly(temp_mask_patch, [local_pts], 1)
+
+        if not np.any(temp_mask_patch):
             return
 
-        bbox_2d = get_bbox_2d(temp_mask_cell)
-        y_min, y_max, x_min, x_max = bbox_2d
-
-        #added buffer if outline of other cells gets changed
-        image_width, image_height = self.drawing_tool.get_bounds()
-        y_min = max(0, y_min - 1)
-        x_min = max(0, x_min - 1)
-        y_max = min(image_height, y_max + 1)
-        x_max = min(image_width, x_max + 1)
-
         if not self._image_3d:
-            old_mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
-            old_outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (False, y_min, x_min, old_mask_patch, old_outline_patch))
+            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (False, y_min, x_min, old_patch))
         else:
             if draw_on_all_slices:
                 z_min = 0
@@ -868,37 +901,36 @@ class ImageEditingView(ft.Card):
                 z_min = self._slice_id
                 z_max = self._slice_id + 1
 
-            old_mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            old_outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_mask_patch, old_outline_patch))
+            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_patch))
 
+        kernel = np.ones((3, 3), dtype=np.uint8)
+        inner_pixels = cv2.erode(temp_mask_patch, kernel)
 
-        kernel = np.ones((3,3), dtype=np.uint8)
-
-        inner_pixels = cv2.erode(temp_mask_cell, kernel)
-
-        outline_mask = (
-                (temp_mask_cell == 1) &
+        outline_mask_patch = (
+                (temp_mask_patch == 1) &
                 (inner_pixels == 0)
         )
 
-        fill_mask = (
-                (temp_mask_cell == 1) &
-                (~outline_mask)
+        fill_mask_patch = (
+                (temp_mask_patch == 1) &
+                (~outline_mask_patch)
         )
 
         if draw_on_all_slices:
-
             for z in range(mask_3d.shape[0]):
                 current_mask = mask_3d[z]
                 current_outline = outline_3d[z]
 
+                c_mask_patch = current_mask[y_min:y_max, x_min:x_max]
+                c_out_patch = current_outline[y_min:y_max, x_min:x_max]
+
                 affected_ids = np.unique(
-                    current_mask[temp_mask_cell == 1]
+                    c_mask_patch[temp_mask_patch == 1]
                 )
 
                 affected_outline_ids = np.unique(
-                    current_outline[temp_mask_cell == 1]
+                    c_out_patch[temp_mask_patch == 1]
                 )
 
                 affected_ids = np.unique(
@@ -917,61 +949,66 @@ class ImageEditingView(ft.Card):
                             (current_outline == cid)
                     ).copy()
 
-                current_mask[fill_mask] = free_id
-                current_outline[outline_mask] = free_id
+                c_mask_patch[fill_mask_patch] = free_id
+                c_out_patch[outline_mask_patch] = free_id
 
                 for cid, cell in affected_cells.items():
 
                     cell = cell.astype(np.uint8)
 
                     # remove overlap with new cell
-                    cell[temp_mask_cell == 1] = 0
+                    cell_patch = cell[y_min:y_max, x_min:x_max]
+                    cell_patch[temp_mask_patch == 1] = 0
 
-                    current_mask[current_mask == cid] = 0
-                    current_outline[current_outline == cid] = 0
+                    c_mask_patch[c_mask_patch == cid] = 0
+                    c_out_patch[c_out_patch == cid] = 0
 
-                    if np.sum(cell) == 0:
+                    if np.sum(cell_patch) == 0:
                         continue
 
                     inner = cv2.erode(
                         cell,
-                        np.ones((3, 3), dtype=np.uint8)
+                        kernel
                     )
 
+                    cell_part = cell[y_min:y_max, x_min:x_max]
+                    inner_part = inner[y_min:y_max, x_min:x_max]
+
                     new_outline = (
-                            (cell == 1) &
-                            (inner == 0)
+                            (cell_part == 1) &
+                            (inner_part == 0)
                     )
 
                     new_fill = (
-                            (cell == 1) &
+                            (cell_part == 1) &
                             (~new_outline)
                     )
 
-                    current_mask[new_fill] = cid
-                    current_outline[new_outline] = cid
+                    c_mask_patch[new_fill] = cid
+                    c_out_patch[new_outline] = cid
 
         else:
+            mask_patch = mask[y_min:y_max, x_min:x_max]
+            outline_patch = outline[y_min:y_max, x_min:x_max]
 
-            valid_area = (
-                    (temp_mask_cell == 1) &
-                    (mask == 0) &
-                    (outline == 0)
+            valid_area_patch = (
+                    (temp_mask_patch == 1) &
+                    (mask_patch == 0) &
+                    (outline_patch == 0)
             )
 
-            mask[valid_area] = free_id
+            mask_patch[valid_area_patch] = free_id
 
-            current_cell_full = (mask == free_id).astype(np.uint8)
+            current_cell_full_patch = (mask_patch == free_id).astype(np.uint8)
+            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel)
 
-            inner_pixels = cv2.erode(current_cell_full, kernel)
-
-            new_outline_mask = (
-                    (current_cell_full == 1) &
-                    (inner_pixels == 0)
+            new_outline_mask_patch = (
+                    (current_cell_full_patch == 1) &
+                    (inner_pixels_patch == 0)
             )
 
-            mask[new_outline_mask] = 0
-            outline[new_outline_mask] = free_id
+            mask_patch[new_outline_mask_patch] = 0
+            outline_patch[new_outline_mask_patch] = free_id
 
         if draw_on_all_slices:
             self._mask_data = {
@@ -999,9 +1036,9 @@ class ImageEditingView(ft.Card):
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
             self._fluorescence_cache.clear()
-            inverse_action = (inverse_action,mapping)
+            inverse_action = (inverse_action, mapping)
         else:
-            inverse_action = (inverse_action,None)
+            inverse_action = (inverse_action, None)
 
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
@@ -1023,7 +1060,6 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
 
         self._trigger_background_save(is_new_mask)
-
 
     def _delete_cell(self, pos: tuple):
         self.page.run_task(self._task_delete_cell, pos)
@@ -1083,36 +1119,33 @@ class ImageEditingView(ft.Card):
 
         if not self._image_3d:
             y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
-            old_mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
-            old_outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (False, y_min, x_min, old_mask_patch, old_outline_patch))
+            old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (False, y_min, x_min, old_patch))
+            mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
+            outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max]
+            cell_mask = (mask_patch == cell_id)
+            cell_outline = (outline_patch == cell_id)
+            mask_patch[cell_mask] = 0
+            outline_patch[cell_outline] = 0
+
         else:
             z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
-            old_mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            old_outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_mask_patch, old_outline_patch))
-
-
-        # Update the mask and outline (delete the cell)
-        if delete_cell_on_all_slices:
-            cell_id = np.unique(cell_id)
-            cell_id = next((x for x in cell_id if x != 0), None)
-
-            for image_slice in range(mask.shape[0]):
-                current_mask =mask[image_slice]
-                current_outline =outline[image_slice]
-
-                cell_mask = ( current_mask == cell_id )
-                cell_outline = (current_outline == cell_id)
-
-                current_mask[cell_mask] = 0
-                current_outline[cell_outline] = 0
-        else:
-            cell_mask = (mask == cell_id)
-            cell_outline = (outline == cell_id)
-
-            mask[cell_mask] = 0
-            outline[cell_outline] = 0
+            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max].copy()
+            inverse_action = ("restore_state", (True, z_min, y_min, x_min, old_patch))
+            mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+            outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
+            if delete_cell_on_all_slices:
+                unique_cell_ids = np.unique(cell_id[cell_id != 0])
+                for cell_id in unique_cell_ids:
+                    cell_mask = (mask_patch == cell_id)
+                    cell_outline = (outline_patch == cell_id)
+                    mask_patch[cell_mask] = 0
+                    outline_patch[cell_outline] = 0
+            else:
+                cell_mask = (mask_patch == cell_id)
+                cell_outline = (outline_patch == cell_id)
+                mask_patch[cell_mask] = 0
+                outline_patch[cell_outline] = 0
 
         # delete saved fluorescence cache, if cell is deleted
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
@@ -1144,12 +1177,12 @@ class ImageEditingView(ft.Card):
         await self.update_mask_image()
         self._trigger_background_save()
 
-    def _trigger_background_save(self,is_new_mask=False):
+    def _trigger_background_save(self, is_new_mask=False):
         current_path = self._mask_path
         current_data = self._mask_data
-        self.page.run_task(self._save_async,current_path,current_data,is_new_mask)
+        self.page.run_task(self._save_async, current_path, current_data, is_new_mask)
 
-    async def _save_async(self,current_path,current_data,is_new_mask):
+    async def _save_async(self, current_path, current_data, is_new_mask):
         if current_path is None or current_data is None:
             return
 
@@ -1218,29 +1251,28 @@ class ImageEditingView(ft.Card):
                 is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask, old_outline = data
+                    _, y_start, x_start, old_mask = data
 
-                    redo_mask_patch = self._mask_data["masks"][
+                    old_outline = get_outline_from_mask(old_mask)
+
+                    redo_patch = self._mask_data["masks"][
                         y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][
-                        y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]].copy()
 
                     self._mask_data["masks"][
                         y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
                     self._mask_data["outlines"][
                         y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
 
-                    inverse = ("restore_state", (False, y_start, x_start, redo_mask_patch, redo_outline_patch))
+                    inverse = ("restore_state", (False, y_start, x_start, redo_patch))
                 else:
-                    _, z_start, y_start, x_start, old_mask, old_outline = data
+                    _, z_start, y_start, x_start, old_mask = data
 
-                    redo_mask_patch = self._mask_data["masks"][
+                    old_outline = get_outline_from_mask(old_mask)
+
+                    redo_patch = self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
                                                                                                              old_mask.shape[
                                                                                                                  2]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][
-                        z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
-                            1], x_start: x_start + old_outline.shape[2]].copy()
 
                     self._mask_data["masks"][
                         z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
@@ -1250,9 +1282,9 @@ class ImageEditingView(ft.Card):
                         z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
                             1], x_start: x_start + old_outline.shape[2]] = old_outline
 
-                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_mask_patch, redo_outline_patch))
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_patch))
 
-                self._undo_stack.append((inverse,mapping))
+                self._undo_stack.append((inverse, mapping))
 
                 await self.update_mask_image()
                 self._trigger_background_save()
@@ -1292,27 +1324,40 @@ class ImageEditingView(ft.Card):
                 is_3d = data[0]
 
                 if not is_3d:
-                    _, y_start, x_start, old_mask, old_outline = data
+                    _, y_start, x_start, old_mask = data
 
-                    redo_mask_patch = self._mask_data["masks"][y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]].copy()
+                    old_outline = get_outline_from_mask(old_mask)
 
-                    self._mask_data["masks"][y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
-                    self._mask_data["outlines"][y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
+                    redo_patch = self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]].copy()
 
-                    inverse = ("restore_state", (False, y_start, x_start, redo_mask_patch, redo_outline_patch))
+                    self._mask_data["masks"][
+                        y_start: y_start + old_mask.shape[0], x_start: x_start + old_mask.shape[1]] = old_mask
+                    self._mask_data["outlines"][
+                        y_start: y_start + old_outline.shape[0], x_start: x_start + old_outline.shape[1]] = old_outline
+
+                    inverse = ("restore_state", (False, y_start, x_start, redo_patch))
                 else:
-                    _, z_start, y_start, x_start, old_mask, old_outline = data
+                    _, z_start, y_start, x_start, old_mask = data
 
-                    redo_mask_patch = self._mask_data["masks"][z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +old_mask.shape[2]].copy()
-                    redo_outline_patch = self._mask_data["outlines"][z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[1], x_start: x_start + old_outline.shape[2]].copy()
+                    old_outline = get_outline_from_mask(old_mask)
 
-                    self._mask_data["masks"][z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start + old_mask.shape[2]] = old_mask
-                    self._mask_data["outlines"][z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[1], x_start: x_start + old_outline.shape[2]] = old_outline
+                    redo_patch = self._mask_data["masks"][
+                        z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
+                                                                                                             old_mask.shape[
+                                                                                                                 2]].copy()
 
-                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_mask_patch, redo_outline_patch))
+                    self._mask_data["masks"][
+                        z_start: z_start + old_mask.shape[0], y_start: y_start + old_mask.shape[1], x_start: x_start +
+                                                                                                             old_mask.shape[
+                                                                                                                 2]] = old_mask
+                    self._mask_data["outlines"][
+                        z_start: z_start + old_outline.shape[0], y_start: y_start + old_outline.shape[
+                            1], x_start: x_start + old_outline.shape[2]] = old_outline
 
-                self._redo_stack.append((inverse,mapping))
+                    inverse = ("restore_state", (True, z_start, y_start, x_start, redo_patch))
+
+                self._redo_stack.append((inverse, mapping))
 
                 await self.update_mask_image()
                 self._trigger_background_save()
@@ -1339,7 +1384,9 @@ class ImageEditingView(ft.Card):
         # load fluorescence value from cache
 
         cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask,
-            self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "2D", self._channel_id,
+                                                                     self._image_cache.get_image(
+                                                                         self._main_paths[self._image_id][
+                                                                             self._channel_id]), "2D", self._channel_id,
                                                                      self._slice_id)
 
         # show id and value in canvas
@@ -1372,7 +1419,9 @@ class ImageEditingView(ft.Card):
                 return
 
             cell_value = self._fluorescence_cache.get_fluorescence_value(cell_id, mask,
-                self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "2.5D",
+                                                                         self._image_cache.get_image(
+                                                                             self._main_paths[self._image_id][
+                                                                                 self._channel_id]), "2.5D",
                                                                          self._channel_id, self._slice_id)
             values = [ft.DataRow(
                 cells=[
@@ -1388,7 +1437,9 @@ class ImageEditingView(ft.Card):
             for cellid in cell_id:
                 if cellid != 0:
                     cell_value = self._fluorescence_cache.get_fluorescence_value(cellid, mask,
-                        self._image_cache.get_image(self._main_paths[self._image_id][self._channel_id]), "3D",
+                                                                                 self._image_cache.get_image(
+                                                                                     self._main_paths[self._image_id][
+                                                                                         self._channel_id]), "3D",
                                                                                  self._channel_id, self._slice_id)
 
                     values.append(
@@ -1455,10 +1506,13 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
             self._show_id_checkbox.update()
             self.page.run_task(self.update_mask_image)
-            self.page.run_task(self.on_mask_change,self._image_id, True)
+            self.page.run_task(self.on_mask_change, self._image_id, True)
 
     def check_edit_allowed(self):
-        if self._edit_allowed and not(self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in self._main_paths[self._image_id]):
+        if self._edit_allowed and not (
+                self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in
+                                                                                                                        self._main_paths[
+                                                                                                                            self._image_id]):
             return True
         else:
             return False
