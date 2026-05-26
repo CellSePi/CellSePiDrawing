@@ -1316,6 +1316,7 @@ class ImageEditingView(ft.Card):
                 raise KeyError("no valid action for redo button")
 
             self._update_undo_redo_buttons()
+        gc.collect()
 
     async def undo_stack(self, e):
         lock = await self._get_action_lock()
@@ -1394,6 +1395,7 @@ class ImageEditingView(ft.Card):
                 raise KeyError("no valid action for undo button")
 
             self._update_undo_redo_buttons()
+        gc.collect()
 
     def show_ids_and_value(self, pos: tuple):
         if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
