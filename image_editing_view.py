@@ -12,6 +12,7 @@ import numpy as np
 import tifffile
 import time
 import lz4.frame
+import gc
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
@@ -192,7 +193,7 @@ class FluorescenceCache:
 
 
 class ImageCache:
-    def __init__(self, max_images=5):
+    def __init__(self, max_images=3):
         self.cache = OrderedDict()
         self._max_images = max_images
 
@@ -201,7 +202,7 @@ class ImageCache:
             self.cache.move_to_end(path)
             return self.cache[path]
         else:
-            image = tifffile.imread(path)
+            image = tifffile.memmap(path,mode='r')
             self.add_image(path, image)
             return image
 
@@ -442,6 +443,7 @@ class ImageEditingView(ft.Card):
         self._edit_allowed = True
         self._delete_mask_button.icon_color = ft.Colors.WHITE_60
         self._delete_mask_button.disabled = False
+        self.server._rendered_cache.clear()
         if not without_update:
             self._main_image.update()
             self._mask_image.update()
@@ -492,6 +494,7 @@ class ImageEditingView(ft.Card):
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         await self._load_main_image(img_id, channel_id)
+        gc.collect()
 
     async def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
