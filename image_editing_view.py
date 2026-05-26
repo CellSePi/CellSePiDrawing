@@ -546,7 +546,10 @@ class ImageEditingView(ft.Card):
         """
         Updates the main image with the new brightness and contrast values.
         """
-        keys = (path, self.auto_adjust, self._slice_id, self.brightness, self.contrast)
+        if self.auto_adjust:
+            keys = (path, self._slice_id, True)
+        else:
+            keys = (path, self._slice_id, False, self.brightness, self.contrast)
 
         entry = self.server.get_cached_entry(keys)
 
