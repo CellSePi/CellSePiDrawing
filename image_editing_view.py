@@ -12,11 +12,34 @@ import numpy as np
 import tifffile
 import time
 import lz4.frame
+import gc
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 from media_server import MediaServer
 
+def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> np.ndarray:
+    """
+    image: np.ndarray of type float with format Z, Y, X or Y, X
+    returns: np.ndarray of type float normalized between 0 and 1
+    """
+    shape = np.array(image.shape)
+
+    offset = shape * margin
+    offset = offset.astype(int)
+
+    cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
+
+    min_val = np.quantile(cropped_image, lower_quantile)
+    max_val = np.quantile(cropped_image, upper_quantile)
+    if (max_val - min_val) > 0:
+        image = (image - min_val) / (max_val - min_val)
+    else:
+        image = np.zeros_like(image)
+
+    image[image < 0] = 0
+    image[image > 1] = 1
+    return image
 
 def get_outline_from_mask(mask_data):
     if mask_data.ndim == 3:
@@ -57,18 +80,9 @@ def _load_mask_data(path):
         data["outlines"] = data["outlines"].astype(np.uint16, copy=False)
     return data
 
-def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
+def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
     shape = list(image.shape)
-
-    if image.dtype == np.uint16:
-        #16bit case
-        max_val = 65535
-        cv_target_dtype = cv2.CV_16U
-    else:
-        #8bit case
-        max_val = 255
-        cv_target_dtype = cv2.CV_8U
-
+    image = image.astype(np.float32)
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
@@ -77,7 +91,8 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=0)
 
     if auto_adjust:
-        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX, dtype=cv_target_dtype)
+        image = normalize_image(image,margin,lower_quantile,upper_quantile)
+        image = (image * 255.0).clip(0, 255).astype(np.uint8)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
@@ -86,9 +101,9 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
         alpha = brightness * contrast
         beta = mid_val * (1 - contrast)
 
-        image = cv2.addWeighted(image, alpha, image, 0, beta, dtype=cv_target_dtype)
-
-    if image.dtype == np.uint16:
+        image = cv2.addWeighted(image, alpha, image, 0, beta)
+        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+    else:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     return image, shape, check
@@ -192,7 +207,7 @@ class FluorescenceCache:
 
 
 class ImageCache:
-    def __init__(self, max_images=5):
+    def __init__(self, max_images=3):
         self.cache = OrderedDict()
         self._max_images = max_images
 
@@ -201,7 +216,7 @@ class ImageCache:
             self.cache.move_to_end(path)
             return self.cache[path]
         else:
-            image = tifffile.imread(path)
+            image = tifffile.memmap(path,mode='r')
             self.add_image(path, image)
             return image
 
@@ -216,6 +231,16 @@ class ImageCache:
 
 
 class ImageEditingView(ft.Card):
+    _margin = 0.1
+    _lower_quantile = 0.02
+    _upper_quantile = 0.99
+
+    @classmethod
+    def update_settings(cls, margin, low, up):
+        cls._margin = margin
+        cls._lower_quantile = low
+        cls._upper_quantile = up
+
     def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
         self.server = MediaServer()
@@ -250,7 +275,7 @@ class ImageEditingView(ft.Card):
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                     expand=True, left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0)
+                                    expand=True, left=0, right=0, top=0, bottom=0, )
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -442,6 +467,7 @@ class ImageEditingView(ft.Card):
         self._edit_allowed = True
         self._delete_mask_button.icon_color = ft.Colors.WHITE_60
         self._delete_mask_button.disabled = False
+        self.server._rendered_cache.clear()
         if not without_update:
             self._main_image.update()
             self._mask_image.update()
@@ -492,6 +518,7 @@ class ImageEditingView(ft.Card):
         self._channel_id = channel_id
         self._seg_channel_id = seg_channel_id
         await self._load_main_image(img_id, channel_id)
+        gc.collect()
 
     async def _load_main_image(self, img_id, channel_id):
         if self._main_paths is not None:
@@ -543,7 +570,10 @@ class ImageEditingView(ft.Card):
         """
         Updates the main image with the new brightness and contrast values.
         """
-        keys = (path, self.auto_adjust, self._slice_id, self.brightness, self.contrast)
+        if self.auto_adjust:
+            keys = (path, self._slice_id, True, self._margin, self._lower_quantile, self._upper_quantile)
+        else:
+            keys = (path, self._slice_id, False, self.brightness, self.contrast)
 
         entry = self.server.get_cached_entry(keys)
 
@@ -554,7 +584,7 @@ class ImageEditingView(ft.Card):
         else:
             image_data = await asyncio.to_thread(self._image_cache.get_image, path)
             data, shape, img_3d = await asyncio.to_thread(
-                load_image, image_data, self.auto_adjust, self._slice_id, self.brightness, self.contrast
+                load_image, image_data,self._margin, self._lower_quantile, self._upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
             )
             self.server.update_image(data, keys, shape, img_3d)
 
@@ -1310,6 +1340,7 @@ class ImageEditingView(ft.Card):
                 raise KeyError("no valid action for redo button")
 
             self._update_undo_redo_buttons()
+        gc.collect()
 
     async def undo_stack(self, e):
         lock = await self._get_action_lock()
@@ -1388,6 +1419,7 @@ class ImageEditingView(ft.Card):
                 raise KeyError("no valid action for undo button")
 
             self._update_undo_redo_buttons()
+        gc.collect()
 
     def show_ids_and_value(self, pos: tuple):
         if self._mask_path is None or self._mask_button.icon_color == ft.Colors.WHITE_60 or self._mask_button.icon_color == ft.Colors.BLACK_12:
@@ -1552,3 +1584,4 @@ class ImageEditingView(ft.Card):
         self._redo_button.disabled = len(self._redo_stack) == 0
         self._redo_button.icon_color = ft.Colors.WHITE_60 if len(self._redo_stack) > 0 else ft.Colors.BLACK_12
         self._redo_button.update()
+
