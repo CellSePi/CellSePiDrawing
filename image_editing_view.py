@@ -452,7 +452,8 @@ class ImageEditingView(ft.Card):
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ], expand=True), expand=True)
+                                                                  ], expand=True), expand=True,
+                                                max_scale=10)
 
         self.content = ft.Stack([
             ft.Column(controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True),
