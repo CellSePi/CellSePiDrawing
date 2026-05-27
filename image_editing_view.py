@@ -109,27 +109,30 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
     shape = list(image.shape)
     image = image.astype(np.float32)
     check = image.ndim == 3
+
+    if auto_adjust:
+        image = normalize_image(image, margin, lower_quantile, upper_quantile)
+        image = (image * 255.0).clip(0, 255).astype(np.uint8)
+
     if check:
         if not get_slice == -1:
             image = image[get_slice, :, :]
         else:
             image = np.max(image, axis=0)
+            
+    if not auto_adjust:
+        if brightness != 1.0 or contrast != 1.0:
+            mean_lum = np.mean(image)
 
-    if auto_adjust:
-        image = normalize_image(image,margin,lower_quantile,upper_quantile)
-        image = (image * 255.0).clip(0, 255).astype(np.uint8)
-    elif brightness != 1.0 or contrast != 1.0:
-        mean_lum = np.mean(image)
+            mid_val = mean_lum * brightness
 
-        mid_val = mean_lum * brightness
+            alpha = brightness * contrast
+            beta = mid_val * (1 - contrast)
 
-        alpha = brightness * contrast
-        beta = mid_val * (1 - contrast)
-
-        image = cv2.addWeighted(image, alpha, image, 0, beta)
-        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
-    else:
-        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+            image = cv2.addWeighted(image, alpha, image, 0, beta)
+            image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+        else:
+            image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     image = rescale_image(image,mode,max_pixel,max_fraction)
 
