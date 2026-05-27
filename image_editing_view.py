@@ -82,14 +82,7 @@ def _load_mask_data(path):
 
 def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
     shape = list(image.shape)
-
-    if image.dtype == np.uint16:
-        #16bit case
-        cv_target_dtype = cv2.CV_16U
-    else:
-        #8bit case
-        cv_target_dtype = cv2.CV_8U
-
+    image = image.astype(np.float32)
     check = image.ndim == 3
     if check:
         if not get_slice == -1:
@@ -99,6 +92,7 @@ def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, ge
 
     if auto_adjust:
         image = normalize_image(image,margin,lower_quantile,upper_quantile)
+        image = (image * 255.0).clip(0, 255).astype(np.uint8)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
@@ -107,9 +101,9 @@ def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, ge
         alpha = brightness * contrast
         beta = mid_val * (1 - contrast)
 
-        image = cv2.addWeighted(image, alpha, image, 0, beta, dtype=cv_target_dtype)
-
-    if image.dtype == np.uint16:
+        image = cv2.addWeighted(image, alpha, image, 0, beta)
+        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+    else:
         image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     return image, shape, check
@@ -237,9 +231,15 @@ class ImageCache:
 
 
 class ImageEditingView(ft.Card):
-    margin = 0.1
-    lower_quantile = 0.02
-    upper_quantile = 0.99
+    _margin = 0.1
+    _lower_quantile = 0.02
+    _upper_quantile = 0.99
+
+    @classmethod
+    def update_settings(cls, margin, low, up):
+        cls._margin = margin
+        cls._lower_quantile = low
+        cls._upper_quantile = up
 
     def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
@@ -571,7 +571,7 @@ class ImageEditingView(ft.Card):
         Updates the main image with the new brightness and contrast values.
         """
         if self.auto_adjust:
-            keys = (path, self._slice_id, True, self.margin, self.lower_quantile, self.upper_quantile)
+            keys = (path, self._slice_id, True, self._margin, self._lower_quantile, self._upper_quantile)
         else:
             keys = (path, self._slice_id, False, self.brightness, self.contrast)
 
@@ -584,7 +584,7 @@ class ImageEditingView(ft.Card):
         else:
             image_data = await asyncio.to_thread(self._image_cache.get_image, path)
             data, shape, img_3d = await asyncio.to_thread(
-                load_image, image_data,self.margin, self.lower_quantile, self.upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
+                load_image, image_data,self._margin, self._lower_quantile, self._upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
             )
             self.server.update_image(data, keys, shape, img_3d)
 
@@ -1584,3 +1584,4 @@ class ImageEditingView(ft.Card):
         self._redo_button.disabled = len(self._redo_stack) == 0
         self._redo_button.icon_color = ft.Colors.WHITE_60 if len(self._redo_stack) > 0 else ft.Colors.BLACK_12
         self._redo_button.update()
+
