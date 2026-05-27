@@ -153,7 +153,8 @@ def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color,
     mask_slice = mask_slice.astype(np.uint16)
 
     mask_slice = rescale_image(mask_slice, mode, max_pixel, max_fraction, is_mask=True)
-    outline_slice = get_outline_from_mask(mask_slice)
+    if mode != "Disabled":
+        outline_slice = get_outline_from_mask(mask_slice)
 
     image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
                           dtype=np.uint8)  # uint8 because here we dont use the cell_id's
