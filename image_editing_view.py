@@ -55,15 +55,15 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
 
     cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
 
-    min_val = np.quantile(cropped_image, lower_quantile)
-    max_val = np.quantile(cropped_image, upper_quantile)
+    min_val, max_val = np.quantile(cropped_image, [lower_quantile, upper_quantile])
+
     if (max_val - min_val) > 0:
         image = (image - min_val) / (max_val - min_val)
     else:
         image = np.zeros_like(image)
 
-    image[image < 0] = 0
-    image[image > 1] = 1
+    np.clip(image, 0.0, 1.0, out=image)
+
     return image
 
 def get_outline_from_mask(mask_data):
@@ -110,16 +110,19 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
     image = image.astype(np.float32)
     check = image.ndim == 3
 
+    t0 = time.perf_counter()
     if auto_adjust:
         image = normalize_image(image, margin, lower_quantile, upper_quantile)
         image = (image * 255.0).clip(0, 255).astype(np.uint8)
+    t1 = time.perf_counter()
+    print("time", (t1 - t0) * 1000)
 
     if check:
         if not get_slice == -1:
             image = image[get_slice, :, :]
         else:
             image = np.max(image, axis=0)
-            
+
     if not auto_adjust:
         if brightness != 1.0 or contrast != 1.0:
             mean_lum = np.mean(image)
@@ -133,8 +136,6 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
         else:
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
-
-    image = rescale_image(image,mode,max_pixel,max_fraction)
 
     return image, shape, check
 
@@ -718,8 +719,8 @@ class ImageEditingView(ft.Card):
                     self._id_info.visible = False
                     self._id_info.update()
                     self._show_id_checkbox.update()
-            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[0] - 1
+            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
             self._slider_2_5d.divisions = shape[0] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
