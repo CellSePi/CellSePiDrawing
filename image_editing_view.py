@@ -18,6 +18,28 @@ from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 from media_server import MediaServer
 
+def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> np.ndarray:
+    """
+    image: np.ndarray of type float with format Z, Y, X or Y, X
+    returns: np.ndarray of type float normalized between 0 and 1
+    """
+    shape = np.array(image.shape)
+
+    offset = shape * margin
+    offset = offset.astype(int)
+
+    cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
+
+    min_val = np.quantile(cropped_image, lower_quantile)
+    max_val = np.quantile(cropped_image, upper_quantile)
+    if (max_val - min_val) > 0:
+        image = (image - min_val) / (max_val - min_val)
+    else:
+        image = np.zeros_like(image)
+
+    image[image < 0] = 0
+    image[image > 1] = 1
+    return image
 
 def get_outline_from_mask(mask_data):
     if mask_data.ndim == 3:
@@ -58,16 +80,14 @@ def _load_mask_data(path):
         data["outlines"] = data["outlines"].astype(np.uint16, copy=False)
     return data
 
-def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0):
+def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
     shape = list(image.shape)
 
     if image.dtype == np.uint16:
         #16bit case
-        max_val = 65535
         cv_target_dtype = cv2.CV_16U
     else:
         #8bit case
-        max_val = 255
         cv_target_dtype = cv2.CV_8U
 
     check = image.ndim == 3
@@ -78,7 +98,7 @@ def load_image(image, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=
             image = np.max(image, axis=0)
 
     if auto_adjust:
-        image = cv2.normalize(image, None, alpha=0, beta=max_val, norm_type=cv2.NORM_MINMAX, dtype=cv_target_dtype)
+        image = normalize_image(image,margin,lower_quantile,upper_quantile)
     elif brightness != 1.0 or contrast != 1.0:
         mean_lum = np.mean(image)
 
@@ -217,6 +237,10 @@ class ImageCache:
 
 
 class ImageEditingView(ft.Card):
+    margin = 0.1
+    lower_quantile = 0.02
+    upper_quantile = 0.99
+
     def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
         self.server = MediaServer()
@@ -251,7 +275,7 @@ class ImageEditingView(ft.Card):
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                     expand=True, left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0)
+                                    expand=True, left=0, right=0, top=0, bottom=0, )
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -547,7 +571,7 @@ class ImageEditingView(ft.Card):
         Updates the main image with the new brightness and contrast values.
         """
         if self.auto_adjust:
-            keys = (path, self._slice_id, True)
+            keys = (path, self._slice_id, True, self.margin, self.lower_quantile, self.upper_quantile)
         else:
             keys = (path, self._slice_id, False, self.brightness, self.contrast)
 
@@ -560,7 +584,7 @@ class ImageEditingView(ft.Card):
         else:
             image_data = await asyncio.to_thread(self._image_cache.get_image, path)
             data, shape, img_3d = await asyncio.to_thread(
-                load_image, image_data, self.auto_adjust, self._slice_id, self.brightness, self.contrast
+                load_image, image_data,self.margin, self.lower_quantile, self.upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
             )
             self.server.update_image(data, keys, shape, img_3d)
 
