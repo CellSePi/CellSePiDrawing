@@ -151,6 +151,7 @@ def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color,
         outline_slice = outline
 
     mask_slice = mask_slice.astype(np.uint16)
+    mask_slice[outline_slice > 0] = 0
 
     mask_slice = rescale_image(mask_slice, mode, max_pixel, max_fraction, is_mask=True)
     if mode != "Disabled":
