@@ -18,6 +18,31 @@ from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex
 from media_server import MediaServer
 
+def rescale_image(image,rescale_mode,max_pixels,max_fraction, is_mask=False):
+    h, w = image.shape[0], image.shape[1]
+    match rescale_mode:
+        case "Disabled":
+            return image
+        case "Pixels":
+            max_pixels = int(max_pixels)
+            max_size = max(h, w)
+            fraction = max_pixels / max_size
+        case "Fraction":
+            fraction = float(max_fraction)
+    new_h = max(1, int(h * fraction))
+    new_w = max(1, int(w * fraction))
+
+    if new_h * new_w> h * w:
+        # Upscaling
+        interpolation = cv2.INTER_NEAREST if is_mask else cv2.INTER_CUBIC
+    else:
+        # Downscaling
+        interpolation = cv2.INTER_NEAREST if is_mask else cv2.INTER_AREA
+
+    image = cv2.resize(image, (new_w,new_h), interpolation=interpolation)
+    t1 = time.perf_counter()
+    return image
+
 def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> np.ndarray:
     """
     image: np.ndarray of type float with format Z, Y, X or Y, X
@@ -30,15 +55,15 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
 
     cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
 
-    min_val = np.quantile(cropped_image, lower_quantile)
-    max_val = np.quantile(cropped_image, upper_quantile)
+    min_val, max_val = np.quantile(cropped_image, [lower_quantile, upper_quantile])
+
     if (max_val - min_val) > 0:
         image = (image - min_val) / (max_val - min_val)
     else:
         image = np.zeros_like(image)
 
-    image[image < 0] = 0
-    image[image > 1] = 1
+    np.clip(image, 0.0, 1.0, out=image)
+
     return image
 
 def get_outline_from_mask(mask_data):
@@ -80,35 +105,41 @@ def _load_mask_data(path):
         data["outlines"] = data["outlines"].astype(np.uint16, copy=False)
     return data
 
-def load_image(image,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
+def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
     shape = list(image.shape)
     image = image.astype(np.float32)
     check = image.ndim == 3
+
+    t0 = time.perf_counter()
+    if auto_adjust:
+        image = normalize_image(image, margin, lower_quantile, upper_quantile)
+        image = (image * 255.0).clip(0, 255).astype(np.uint8)
+    t1 = time.perf_counter()
+    print("time", (t1 - t0) * 1000)
+
     if check:
         if not get_slice == -1:
             image = image[get_slice, :, :]
         else:
             image = np.max(image, axis=0)
 
-    if auto_adjust:
-        image = normalize_image(image,margin,lower_quantile,upper_quantile)
-        image = (image * 255.0).clip(0, 255).astype(np.uint8)
-    elif brightness != 1.0 or contrast != 1.0:
-        mean_lum = np.mean(image)
+    if not auto_adjust:
+        if brightness != 1.0 or contrast != 1.0:
+            mean_lum = np.mean(image)
 
-        mid_val = mean_lum * brightness
+            mid_val = mean_lum * brightness
 
-        alpha = brightness * contrast
-        beta = mid_val * (1 - contrast)
+            alpha = brightness * contrast
+            beta = mid_val * (1 - contrast)
 
-        image = cv2.addWeighted(image, alpha, image, 0, beta)
-        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
-    else:
-        image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+            image = cv2.addWeighted(image, alpha, image, 0, beta)
+            image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+        else:
+            image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
     return image, shape, check
 
-def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, slice_id=-1):
+def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color, outline_color, opacity, slice_id=-1):
     """
     handles the conversion of the given file data
 
@@ -122,6 +153,13 @@ def convert_npy_to_canvas(mask, outline, mask_color, outline_color, opacity, sli
     else:  # 2d nothing to do
         mask_slice = mask
         outline_slice = outline
+
+    mask_slice = mask_slice.astype(np.uint16)
+    mask_slice[outline_slice > 0] = 0
+
+    mask_slice = rescale_image(mask_slice, mode, max_pixel, max_fraction, is_mask=True)
+    if mode != "Disabled":
+        outline_slice = get_outline_from_mask(mask_slice)
 
     image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
                           dtype=np.uint8)  # uint8 because here we dont use the cell_id's
@@ -231,18 +269,30 @@ class ImageCache:
 
 
 class ImageEditingView(ft.Card):
+    _instances = []
     _margin = 0.1
     _lower_quantile = 0.02
     _upper_quantile = 0.99
+    _mode = "Disabled"
+    _max_pixel = 1024
+    _max_fraction = 0.25
 
     @classmethod
-    def update_settings(cls, margin, low, up):
+    def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction):
         cls._margin = margin
         cls._lower_quantile = low
         cls._upper_quantile = up
+        cls._mode = mode
+        cls._max_pixel = max_pixel
+        cls._max_fraction = max_fraction
+        for instance in cls._instances:
+            instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
+
+
 
     def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
         super().__init__()
+        ImageEditingView._instances.append(self)
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
@@ -406,7 +456,8 @@ class ImageEditingView(ft.Card):
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ], expand=True), expand=True)
+                                                                  ], expand=True), expand=True,
+                                                max_scale=10)
 
         self.content = ft.Stack([
             ft.Column(controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True),
@@ -480,12 +531,14 @@ class ImageEditingView(ft.Card):
             self._id_info.update()
             self._delete_mask_button.update()
 
-    def select_image(self, img_id, channel_id, seg_channel_id):
-        self.page.run_task(self.select_image_async, img_id, channel_id, seg_channel_id)
+    def select_image(self, img_id, channel_id, seg_channel_id,reload=False):
+        if img_id is None or channel_id is None or seg_channel_id is None:
+            return
+        self.page.run_task(self.select_image_async, img_id, channel_id, seg_channel_id,reload)
 
-    async def select_image_async(self, img_id, channel_id, seg_channel_id):
+    async def select_image_async(self, img_id, channel_id, seg_channel_id,reload=False):
         self._slice_id = -1 if not self._user_2_5d else self._slice_id
-        if self._seg_channel_id != seg_channel_id or self._image_id != img_id:
+        if self._seg_channel_id != seg_channel_id or self._image_id != img_id or reload:
             await self._load_mask_image(img_id, seg_channel_id)
             # reset undo/redo when a new image is selected
             if not self._mask_button.disabled:
@@ -571,9 +624,9 @@ class ImageEditingView(ft.Card):
         Updates the main image with the new brightness and contrast values.
         """
         if self.auto_adjust:
-            keys = (path, self._slice_id, True, self._margin, self._lower_quantile, self._upper_quantile)
+            keys = (path, self._slice_id,self._mode,self._max_pixel,self._max_fraction, True, self._margin, self._lower_quantile, self._upper_quantile)
         else:
-            keys = (path, self._slice_id, False, self.brightness, self.contrast)
+            keys = (path, self._slice_id,self._mode,self._max_pixel,self._max_fraction, False, self.brightness, self.contrast)
 
         entry = self.server.get_cached_entry(keys)
 
@@ -584,7 +637,7 @@ class ImageEditingView(ft.Card):
         else:
             image_data = await asyncio.to_thread(self._image_cache.get_image, path)
             data, shape, img_3d = await asyncio.to_thread(
-                load_image, image_data,self._margin, self._lower_quantile, self._upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
+                load_image, image_data,self._mode,self._max_pixel,self._max_fraction,self._margin, self._lower_quantile, self._upper_quantile, self.auto_adjust, self._slice_id, self.brightness, self.contrast
             )
             self.server.update_image(data, keys, shape, img_3d)
 
@@ -666,8 +719,8 @@ class ImageEditingView(ft.Card):
                     self._id_info.visible = False
                     self._id_info.update()
                     self._show_id_checkbox.update()
-            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value
             self._slider_2_5d.max = shape[0] - 1
+            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
             self._slider_2_5d.divisions = shape[0] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
@@ -710,7 +763,7 @@ class ImageEditingView(ft.Card):
                         self._mask_path = new_path
 
                     data = await asyncio.to_thread(convert_npy_to_canvas, self._mask_data["masks"],
-                                                   self._mask_data["outlines"],
+                                                   self._mask_data["outlines"],self._mode,self._max_pixel,self._max_fraction,
                                                    self.mask_color, self.outline_color,
                                                    self.mask_opacity,
                                                    slice_id=self._slice_id)
@@ -774,7 +827,7 @@ class ImageEditingView(ft.Card):
             return
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
-        data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline, self.mask_color,
+        data = await asyncio.to_thread(convert_npy_to_canvas, mask, outline,self._mode,self._max_pixel,self._max_fraction, self.mask_color,
                                        self.outline_color, self.mask_opacity, self._slice_id)
         self._mask_image.src = data
         self._mask_image.update()
