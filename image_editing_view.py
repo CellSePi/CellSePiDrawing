@@ -40,7 +40,6 @@ def rescale_image(image,rescale_mode,max_pixels,max_fraction, is_mask=False):
         interpolation = cv2.INTER_NEAREST if is_mask else cv2.INTER_AREA
 
     image = cv2.resize(image, (new_w,new_h), interpolation=interpolation)
-    t1 = time.perf_counter()
     return image
 
 def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> np.ndarray:
@@ -48,22 +47,35 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
     image: np.ndarray of type float with format Z, Y, X or Y, X
     returns: np.ndarray of type float normalized between 0 and 1
     """
+    t0 = time.perf_counter()
+
     shape = np.array(image.shape)
+    offset = (shape * margin).astype(int)
+    cropped = image[..., offset[-2]:-offset[-2], offset[-1]:-offset[-1]]
 
-    offset = shape * margin
-    offset = offset.astype(int)
+    t1 = time.perf_counter()
+    flat = cropped.ravel().astype(np.float32)
+    lo, hi = float(flat.min()), float(flat.max())
 
-    cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
+    bins = 1024
+    hist = cv2.calcHist([flat.reshape(-1, 1)], [0], None, [bins], [lo, hi]).ravel()
+    cdf = np.cumsum(hist) / hist.sum()
+    bin_edges = np.linspace(lo, hi, bins + 1)
 
-    min_val, max_val = np.quantile(cropped_image, [lower_quantile, upper_quantile])
+    min_val = float(bin_edges[np.searchsorted(cdf, lower_quantile)])
+    max_val = float(bin_edges[np.searchsorted(cdf, upper_quantile)])
 
-    if (max_val - min_val) > 0:
-        image = (image - min_val) / (max_val - min_val)
-    else:
-        image = np.zeros_like(image)
+    t2 = time.perf_counter()
 
+    np.subtract(image, min_val, out=image)
+    np.divide(image, (max_val - min_val), out=image)
     np.clip(image, 0.0, 1.0, out=image)
 
+    t3 = time.perf_counter()
+
+    print(f"Crop:       {(t1 - t0) * 1000:.2f}ms")
+    print(f"Quantile:   {(t2 - t1) * 1000:.2f}ms")  # vermutlich hier
+    print(f"Normalize:  {(t3 - t2) * 1000:.2f}ms")
     return image
 
 def get_outline_from_mask(mask_data):
@@ -136,6 +148,11 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
         else:
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+
+    t5 = time.perf_counter()
+    image = rescale_image(image, mode, max_pixel, max_fraction)
+    t6 = time.perf_counter()
+    print("rescale", (t6 - t5) * 1000)
 
     return image, shape, check
 
