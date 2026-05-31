@@ -131,7 +131,10 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
 
     if check:
         if not get_slice == -1:
-            image = image[get_slice, :, :]
+            if 0 <= get_slice < image.shape[0]:
+                image = image[get_slice, :, :]
+            else:
+                image = image[image.shape[0]-1,:,:]
         else:
             image = np.max(image, axis=0)
 
@@ -737,7 +740,7 @@ class ImageEditingView(ft.Card):
                     self._id_info.update()
                     self._show_id_checkbox.update()
             self._slider_2_5d.max = shape[0] - 1
-            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
+            self._slider_2_5d.value = self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
             self._slider_2_5d.divisions = shape[0] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
@@ -1206,6 +1209,7 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         unique_ids = np.unique(cell_id)
+        unique_ids = unique_ids[unique_ids != 0]
 
         if len(unique_ids) == 0:
             return
@@ -1222,6 +1226,12 @@ class ImageEditingView(ft.Card):
 
         if not self._image_3d:
             y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
+            image_width, image_height = self.drawing_tool.get_bounds()
+            padding = 3
+            y_min = max(0, y_min - padding)
+            x_min = max(0, x_min - padding)
+            y_max = min(image_height, y_max + padding)
+            x_max = min(image_width, x_max + padding)
             old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1237,6 +1247,12 @@ class ImageEditingView(ft.Card):
 
         else:
             z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
+            image_width, image_height = self.drawing_tool.get_bounds()
+            padding = 3
+            y_min = max(0, y_min - padding)
+            x_min = max(0, x_min - padding)
+            y_max = min(image_height, y_max + padding)
+            x_max = min(image_width, x_max + padding)
             old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1247,9 +1263,9 @@ class ImageEditingView(ft.Card):
             outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
                 unique_cell_ids = np.unique(cell_id[cell_id != 0])
-                for cell_id in unique_cell_ids:
-                    cell_mask = (mask_patch == cell_id)
-                    cell_outline = (outline_patch == cell_id)
+                for cid in unique_cell_ids:
+                    cell_mask = (mask_patch == cid)
+                    cell_outline = (outline_patch == cid)
                     mask_patch[cell_mask] = 0
                     outline_patch[cell_outline] = 0
             else:
@@ -1262,19 +1278,20 @@ class ImageEditingView(ft.Card):
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
         slice_cache = cache_2d.get(self._channel_id, {})
 
-        condition = (
-                (
-                        self._slice_id in slice_cache
-                        and cell_id in slice_cache[self._slice_id]
-                )
-                or (
-                        None in slice_cache
-                        and cell_id in slice_cache[None]
-                )
-        )
-        if condition:
-            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
-                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+        for cid in unique_ids:
+            condition = (
+                    (
+                            self._slice_id in slice_cache
+                            and cid in slice_cache[self._slice_id]
+                    )
+                    or (
+                            None in slice_cache
+                            and cid in slice_cache[None]
+                    )
+            )
+            if condition:
+                self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
+                    self._slice_id if self._slice_id != -1 else None].pop(cid)
 
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
