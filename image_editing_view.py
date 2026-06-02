@@ -343,9 +343,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack = deque(maxlen=self._max_history)
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0)
+                                     left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0, )
+                                     left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -476,7 +476,7 @@ class ImageEditingView(ft.Card):
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ], expand=True), expand=True,
+                                                                  ]), expand=True,
                                                 max_scale=10)
 
         self.content = ft.Stack([
@@ -1011,19 +1011,19 @@ class ImageEditingView(ft.Card):
             inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
 
         kernel = np.ones((3, 3), dtype=np.uint8)
-        inner_pixels = cv2.erode(temp_mask_patch, kernel)
-
-        outline_mask_patch = (
-                (temp_mask_patch == 1) &
-                (inner_pixels == 0)
-        )
-
-        fill_mask_patch = (
-                (temp_mask_patch == 1) &
-                (~outline_mask_patch)
-        )
 
         if draw_on_all_slices:
+            inner_pixels = cv2.erode(temp_mask_patch, kernel, borderValue=0)
+
+            outline_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (inner_pixels == 0)
+            )
+
+            fill_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (~outline_mask_patch)
+            )
             for z in range(mask_3d.shape[0]):
                 current_mask = mask_3d[z]
                 current_outline = outline_3d[z]
@@ -1074,7 +1074,8 @@ class ImageEditingView(ft.Card):
 
                     inner = cv2.erode(
                         cell,
-                        kernel
+                        kernel,
+                        borderValue = 0
                     )
 
                     cell_part = cell[y_min:y_max, x_min:x_max]
@@ -1106,7 +1107,7 @@ class ImageEditingView(ft.Card):
             mask_patch[valid_area_patch] = free_id
 
             current_cell_full_patch = (mask_patch == free_id).astype(np.uint8)
-            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel)
+            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel,borderValue=0)
 
             new_outline_mask_patch = (
                     (current_cell_full_patch == 1) &
