@@ -40,7 +40,6 @@ def rescale_image(image,rescale_mode,max_pixels,max_fraction, is_mask=False):
         interpolation = cv2.INTER_NEAREST if is_mask else cv2.INTER_AREA
 
     image = cv2.resize(image, (new_w,new_h), interpolation=interpolation)
-    t1 = time.perf_counter()
     return image
 
 def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> np.ndarray:
@@ -48,22 +47,35 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
     image: np.ndarray of type float with format Z, Y, X or Y, X
     returns: np.ndarray of type float normalized between 0 and 1
     """
+    t0 = time.perf_counter()
+
     shape = np.array(image.shape)
+    offset = (shape * margin).astype(int)
+    cropped = image[..., offset[-2]:-offset[-2], offset[-1]:-offset[-1]]
 
-    offset = shape * margin
-    offset = offset.astype(int)
+    t1 = time.perf_counter()
+    flat = cropped.ravel().astype(np.float32)
+    lo, hi = float(flat.min()), float(flat.max())
 
-    cropped_image = image[..., offset[-2]: -offset[-2], offset[-1]: -offset[-1]]
+    bins = 1024
+    hist = cv2.calcHist([flat.reshape(-1, 1)], [0], None, [bins], [lo, hi]).ravel()
+    cdf = np.cumsum(hist) / hist.sum()
+    bin_edges = np.linspace(lo, hi, bins + 1)
 
-    min_val, max_val = np.quantile(cropped_image, [lower_quantile, upper_quantile])
+    min_val = float(bin_edges[np.searchsorted(cdf, lower_quantile)])
+    max_val = float(bin_edges[np.searchsorted(cdf, upper_quantile)])
 
-    if (max_val - min_val) > 0:
-        image = (image - min_val) / (max_val - min_val)
-    else:
-        image = np.zeros_like(image)
+    t2 = time.perf_counter()
 
+    np.subtract(image, min_val, out=image)
+    np.divide(image, (max_val - min_val), out=image)
     np.clip(image, 0.0, 1.0, out=image)
 
+    t3 = time.perf_counter()
+
+    print(f"Crop:       {(t1 - t0) * 1000:.2f}ms")
+    print(f"Quantile:   {(t2 - t1) * 1000:.2f}ms")  # vermutlich hier
+    print(f"Normalize:  {(t3 - t2) * 1000:.2f}ms")
     return image
 
 def get_outline_from_mask(mask_data):
@@ -119,7 +131,10 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
 
     if check:
         if not get_slice == -1:
-            image = image[get_slice, :, :]
+            if 0 <= get_slice < image.shape[0]:
+                image = image[get_slice, :, :]
+            else:
+                image = image[image.shape[0]-1,:,:]
         else:
             image = np.max(image, axis=0)
 
@@ -136,6 +151,11 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
         else:
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
+
+    t5 = time.perf_counter()
+    image = rescale_image(image, mode, max_pixel, max_fraction)
+    t6 = time.perf_counter()
+    print("rescale", (t6 - t5) * 1000)
 
     return image, shape, check
 
@@ -323,9 +343,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack = deque(maxlen=self._max_history)
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0)
+                                     left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0, )
+                                     left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -456,7 +476,7 @@ class ImageEditingView(ft.Card):
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ], expand=True), expand=True,
+                                                                  ]), expand=True,
                                                 max_scale=10)
 
         self.content = ft.Stack([
@@ -720,7 +740,7 @@ class ImageEditingView(ft.Card):
                     self._id_info.update()
                     self._show_id_checkbox.update()
             self._slider_2_5d.max = shape[0] - 1
-            self._slider_2_5d.value = 0 if shape[0] - 1 < self._slider_2_5d.value else self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
+            self._slider_2_5d.value = self._slider_2_5d.value if self._slider_2_5d.value<=(shape[0] -1) else shape[0] -1
             self._slider_2_5d.divisions = shape[0] - 1
             self._slider_2_5d.disabled = False
             self._slider_2_5d.update()
@@ -991,19 +1011,19 @@ class ImageEditingView(ft.Card):
             inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
 
         kernel = np.ones((3, 3), dtype=np.uint8)
-        inner_pixels = cv2.erode(temp_mask_patch, kernel)
-
-        outline_mask_patch = (
-                (temp_mask_patch == 1) &
-                (inner_pixels == 0)
-        )
-
-        fill_mask_patch = (
-                (temp_mask_patch == 1) &
-                (~outline_mask_patch)
-        )
 
         if draw_on_all_slices:
+            inner_pixels = cv2.erode(temp_mask_patch, kernel, borderValue=0)
+
+            outline_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (inner_pixels == 0)
+            )
+
+            fill_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (~outline_mask_patch)
+            )
             for z in range(mask_3d.shape[0]):
                 current_mask = mask_3d[z]
                 current_outline = outline_3d[z]
@@ -1054,7 +1074,8 @@ class ImageEditingView(ft.Card):
 
                     inner = cv2.erode(
                         cell,
-                        kernel
+                        kernel,
+                        borderValue = 0
                     )
 
                     cell_part = cell[y_min:y_max, x_min:x_max]
@@ -1086,7 +1107,7 @@ class ImageEditingView(ft.Card):
             mask_patch[valid_area_patch] = free_id
 
             current_cell_full_patch = (mask_patch == free_id).astype(np.uint8)
-            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel)
+            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel,borderValue=0)
 
             new_outline_mask_patch = (
                     (current_cell_full_patch == 1) &
@@ -1189,6 +1210,7 @@ class ImageEditingView(ft.Card):
             cell_id = cell_id_outline
 
         unique_ids = np.unique(cell_id)
+        unique_ids = unique_ids[unique_ids != 0]
 
         if len(unique_ids) == 0:
             return
@@ -1205,6 +1227,12 @@ class ImageEditingView(ft.Card):
 
         if not self._image_3d:
             y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
+            image_width, image_height = self.drawing_tool.get_bounds()
+            padding = 3
+            y_min = max(0, y_min - padding)
+            x_min = max(0, x_min - padding)
+            y_max = min(image_height, y_max + padding)
+            x_max = min(image_width, x_max + padding)
             old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1220,6 +1248,12 @@ class ImageEditingView(ft.Card):
 
         else:
             z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
+            image_width, image_height = self.drawing_tool.get_bounds()
+            padding = 3
+            y_min = max(0, y_min - padding)
+            x_min = max(0, x_min - padding)
+            y_max = min(image_height, y_max + padding)
+            x_max = min(image_width, x_max + padding)
             old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1230,9 +1264,9 @@ class ImageEditingView(ft.Card):
             outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
                 unique_cell_ids = np.unique(cell_id[cell_id != 0])
-                for cell_id in unique_cell_ids:
-                    cell_mask = (mask_patch == cell_id)
-                    cell_outline = (outline_patch == cell_id)
+                for cid in unique_cell_ids:
+                    cell_mask = (mask_patch == cid)
+                    cell_outline = (outline_patch == cid)
                     mask_patch[cell_mask] = 0
                     outline_patch[cell_outline] = 0
             else:
@@ -1245,19 +1279,20 @@ class ImageEditingView(ft.Card):
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
         slice_cache = cache_2d.get(self._channel_id, {})
 
-        condition = (
-                (
-                        self._slice_id in slice_cache
-                        and cell_id in slice_cache[self._slice_id]
-                )
-                or (
-                        None in slice_cache
-                        and cell_id in slice_cache[None]
-                )
-        )
-        if condition:
-            self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
-                self._slice_id if self._slice_id != -1 else None].pop(cell_id)
+        for cid in unique_ids:
+            condition = (
+                    (
+                            self._slice_id in slice_cache
+                            and cid in slice_cache[self._slice_id]
+                    )
+                    or (
+                            None in slice_cache
+                            and cid in slice_cache[None]
+                    )
+            )
+            if condition:
+                self._fluorescence_cache.fluorescence_cache[image_dim][self._channel_id][
+                    self._slice_id if self._slice_id != -1 else None].pop(cid)
 
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)

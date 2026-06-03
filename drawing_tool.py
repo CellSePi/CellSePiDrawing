@@ -130,8 +130,7 @@ class DrawingTool(cv.Canvas):
     async def handle_pan_end(self):
         if self._state.drawing_mode and self._state.start_point is not None:
             self._state.lines.append((self.translate_into_image_coordinates((self._state.x, self._state.y)),
-                                      self.translate_into_image_coordinates(
-                                          (self._state.start_point[0], self._state.start_point[1]))))
+                                      self.translate_into_image_coordinates((self._state.start_point[0], self._state.start_point[1]))))
             self.on_cell_drawn(self._state.lines)
             self._state.lines.clear()
             self.shapes.clear()
@@ -146,8 +145,8 @@ class DrawingTool(cv.Canvas):
         max_width = self._state.offset_x + (self._state.image_width * self._state.scale)
         max_height = self._state.offset_y + (self._state.image_height * self._state.scale)
 
-        x = max(self._state.offset_x, min(point[0], max_width - 1))
-        y = max(self._state.offset_y, min(point[1], max_height - 1))
+        x = max(self._state.offset_x, min(point[0], max_width))
+        y = max(self._state.offset_y, min(point[1], max_height))
 
         return x, y
 
