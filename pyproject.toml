@@ -16,7 +16,8 @@ dependencies = [
     "opencv-python-headless==4.13.0.92",
     "uvicorn==0.40.0",
     "fastapi==0.135.4",
-    "lz4==4.4.5"
+    "lz4==4.4.5",
+    "numba==0.65.1"
 ]
 
 [tool.setuptools]
