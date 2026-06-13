@@ -1,3 +1,4 @@
+from numba import njit
 import numpy as np
 
 def rgb_to_hex(rgb_color):
@@ -10,40 +11,66 @@ def rgb_to_hex(rgb_color):
     """
     return "#{:02x}{:02x}{:02x}".format(*rgb_color)
 
+@njit(cache=True)
+def _numba_shift_mask(mask_flat, outline_flat):
+    seen = np.zeros(65536, dtype=np.bool_)
+    max_id = 0
+
+    for i in range(outline_flat.size):
+        val = outline_flat[i]
+        if val != 0:
+            seen[val] = True
+            if val > max_id:
+                max_id = val
+
+    if max_id == 0:
+        return False, 0, np.zeros(1, dtype=np.uint16)
+
+    unique_count = 0
+    for i in range(1, max_id + 1):
+        if seen[i]:
+            unique_count += 1
+
+    if max_id == unique_count:
+        return False, 0, np.zeros(1, dtype=np.uint16)
+
+    lookup = np.zeros(max_id + 1, dtype=np.uint16)
+    new_id = 1
+    for i in range(1, max_id + 1):
+        if seen[i]:
+            lookup[i] = new_id
+            new_id += 1
+
+    for i in range(mask_flat.size):
+        val_m = mask_flat[i]
+        if val_m != 0 and val_m <= max_id:
+            mask_flat[i] = lookup[val_m]
+
+        val_o = outline_flat[i]
+        if val_o != 0 and val_o <= max_id:
+            outline_flat[i] = lookup[val_o]
+
+    return True, max_id, lookup
+
+
 def mask_shifting(mask_data):
     """
-    Shifts the mask when a mask got deleted to restore an order without gaps.
-
-    Args:
-        mask_data (np.array): the mask data.
-        deleted_mask_id (int): the id of the deleted mask.
-        slice_id (int): the id of the slice when the mask is 3d.
-
-    Raises:
-          ValueError: if the deleted_mask_id is smaller or equal to 0.
+    Shifts the mask when a mask got deleted or added to restore an order without gaps.
     """
     mask = mask_data["masks"]
     outline = mask_data["outlines"]
 
-    all_ids = np.unique(outline)
-    all_ids = all_ids[all_ids != 0]
+    shifted, max_id, lookup = _numba_shift_mask(mask.ravel(), outline.ravel())
 
-    if len(all_ids) == 0:
+    if not shifted:
         return None
 
-    if all_ids[-1] == len(all_ids):
-        return None
+    mapping_dict = {}
+    for old_id in range(1, max_id + 1):
+        new_id = lookup[old_id]
+        if new_id != 0:
+            mapping_dict[old_id] = int(new_id)
 
-    mapping_dict = {old_id: new_id for new_id, old_id in enumerate(all_ids, 1)}
-
-    max_id = all_ids[-1]
-    lookup = np.arange(max_id + 1, dtype=np.uint16)
-
-    for old_id, new_id in mapping_dict.items():
-        lookup[old_id] = new_id
-
-    mask_data["masks"] = lookup[mask]
-    mask_data["outlines"] = lookup[outline]
     return mapping_dict
 
 def search_free_id(mask,outline, slice_id):
@@ -68,3 +95,145 @@ def search_free_id(mask,outline, slice_id):
         return int(zero_indices[0] + 1)
     else:
         return int(max_val + 1)
+
+
+@njit(cache=True)
+def _numba_count(arr):
+    seen = np.zeros(65536, dtype=np.bool_)
+    count = 0
+    for val in arr.flat:
+        if val != 0 and not seen[val]:
+            seen[val] = True
+            count += 1
+    return count
+
+def count_ids(mask_array, current_slice):
+    if mask_array.ndim == 3 and current_slice >= 0:
+        return _numba_count(mask_array[current_slice])
+    else:
+        return _numba_count(mask_array)
+
+
+@njit(cache=True)
+def _numba_process_2d_slice(mask_slice):
+    h, w = mask_slice.shape
+    outline = np.zeros((h, w), dtype=np.uint16)
+
+    for y in range(h):
+        for x in range(w):
+            if mask_slice[y, x] == 0:
+                found_id = 0
+                for dy in range(-1, 2):
+                    for dx in range(-1, 2):
+                        ny, nx = y + dy, x + dx
+                        if 0 <= ny < h and 0 <= nx < w:
+                            cid = mask_slice[ny, nx]
+                            if cid > 0:
+                                if cid > found_id:
+                                    found_id = cid
+
+                if found_id > 0:
+                    outline[y, x] = found_id
+
+    return outline
+
+
+@njit(cache=True)
+def _numba_histogram(arr):
+    hist = np.zeros(65536, dtype=np.uint64)
+    for val in arr.flat:
+        idx = int(val)
+        if 0 <= idx <= 65535:
+            hist[idx] += 1
+
+    return hist
+
+@njit(cache=True)
+def _numba_build_canvas(mask_slice, outline_slice, image_mask, m_b, m_g, m_r, opacity, o_b, o_g, o_r):
+    h, w = mask_slice.shape
+    for y in range(h):
+        for x in range(w):
+            if outline_slice[y, x] > 0:
+                image_mask[y, x, 0] = o_b
+                image_mask[y, x, 1] = o_g
+                image_mask[y, x, 2] = o_r
+                image_mask[y, x, 3] = 255
+            elif mask_slice[y, x] > 0:
+                image_mask[y, x, 0] = m_b
+                image_mask[y, x, 1] = m_g
+                image_mask[y, x, 2] = m_r
+                image_mask[y, x, 3] = opacity
+
+
+@njit(cache=True)
+def _numba_bbox_3d(mask_3d):
+    z_min, y_min, x_min = 999999, 999999, 999999
+    z_max, y_max, x_max = -1, -1, -1
+
+    d0, d1, d2 = mask_3d.shape
+    for z in range(d0):
+        for y in range(d1):
+            for x in range(d2):
+                if mask_3d[z, y, x] != 0:
+                    if z < z_min: z_min = z
+                    if z > z_max: z_max = z
+                    if y < y_min: y_min = y
+                    if y > y_max: y_max = y
+                    if x < x_min: x_min = x
+                    if x > x_max: x_max = x
+
+    if z_max == -1: return (0, 0, 0, 0, 0, 0)
+    return (z_min, z_max + 1, y_min, y_max + 1, x_min, x_max + 1)
+
+
+@njit(cache=True)
+def _numba_bbox_2d(mask_2d):
+    y_min, x_min = 999999, 999999
+    y_max, x_max = -1, -1
+
+    d0, d1 = mask_2d.shape
+    for y in range(d0):
+        for x in range(d1):
+            if mask_2d[y, x] != 0:
+                if y < y_min: y_min = y
+                if y > y_max: y_max = y
+                if x < x_min: x_min = x
+                if x > x_max: x_max = x
+
+    if y_max == -1: return (0, 0, 0, 0)
+    return (y_min, y_max + 1, x_min, x_max + 1)
+
+# ==========================================
+# NUMBA WARM-UP
+# ==========================================
+
+_dummy_uint16_3d = np.zeros((3, 10, 10), dtype=np.uint16)
+_dummy_uint16_2d = np.zeros((10, 10), dtype=np.uint16)
+_dummy_mask_flat = np.zeros(10, dtype=np.uint16)
+_dummy_float32_3d = np.zeros((3, 10, 10), dtype=np.float32)
+_dummy_float32_2d = np.zeros((10, 10), dtype=np.float32)
+_dummy_rgba = np.zeros((10, 10, 4), dtype=np.uint8)
+_uint8_3d = np.zeros((3, 10, 10), dtype=np.uint8)
+_dummy_uint8_3d = np.zeros((3, 10, 10), dtype=np.uint8)
+_dummy_uint8_2d = np.zeros((10, 10), dtype=np.uint8)
+
+_numba_count(_dummy_uint16_3d)
+_numba_count(_dummy_uint16_2d)
+_numba_count(_dummy_uint16_3d[0])
+
+_numba_shift_mask(_dummy_mask_flat, _dummy_mask_flat)
+
+_numba_process_2d_slice(_dummy_uint16_2d)
+_numba_process_2d_slice(_dummy_uint16_3d[0])
+
+_numba_histogram(_dummy_float32_3d[..., 1:-1, 1:-1])
+_numba_histogram(_dummy_float32_2d[..., 1:-1, 1:-1])
+_numba_histogram(_dummy_float32_3d)
+_numba_histogram(_dummy_float32_2d)
+
+_numba_build_canvas(_dummy_uint16_2d, _dummy_uint16_2d, _dummy_rgba, 0,0,0,0, 0,0,0)
+
+_numba_bbox_3d(_dummy_uint8_3d)
+_numba_bbox_2d(_dummy_uint8_2d)
+
+del _dummy_uint16_3d, _dummy_uint16_2d, _dummy_mask_flat, _dummy_float32_3d, _dummy_float32_2d, _dummy_rgba, _dummy_uint8_3d, _dummy_uint8_2d
