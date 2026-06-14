@@ -801,6 +801,9 @@ class ImageEditingView(ft.Card):
             self._mask_button.icon_color = ft.Colors.BLACK_12
             self._mask_button.disabled = True
             self._mask_button.update()
+            self.mask_number.value = "0"
+            self.mask_number.update()
+
 
         if not self._mask_button.disabled:
             self._show_id_checkbox.disabled = False
