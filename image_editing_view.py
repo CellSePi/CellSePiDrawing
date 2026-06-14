@@ -776,6 +776,8 @@ class ImageEditingView(ft.Card):
         self.mask_number.update()
 
     async def update_mask_number(self):
+        if self.mask_data is None:
+            return
         total_masks = count_ids(self._mask_data["masks"], self._slice_id)
         self.mask_number.value = str(total_masks)
         self.mask_number.update()
