@@ -15,7 +15,7 @@ import lz4.frame
 import gc
 
 from drawing_tool import DrawingTool
-from drawing_util import search_free_id, mask_shifting, rgb_to_hex
+from drawing_util import search_free_id, mask_shifting, rgb_to_hex, count_ids, _numba_process_2d_slice, _numba_histogram, _numba_build_canvas, _numba_normalize_inplace_3d, _numba_normalize_inplace_2d, _numba_get_cell_mean_3d, _numba_get_cell_mean_2d, _numba_delete_ids_inplace_3d, _numba_delete_ids_inplace_2d, _numba_bbox_for_ids_3d, _numba_bbox_for_ids_2d
 from media_server import MediaServer
 
 def rescale_image(image,rescale_mode,max_pixels,max_fraction, is_mask=False):
@@ -47,35 +47,25 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
     image: np.ndarray of type float with format Z, Y, X or Y, X
     returns: np.ndarray of type float normalized between 0 and 1
     """
-    t0 = time.perf_counter()
-
     shape = np.array(image.shape)
     offset = (shape * margin).astype(int)
     cropped = image[..., offset[-2]:-offset[-2], offset[-1]:-offset[-1]]
 
-    t1 = time.perf_counter()
-    flat = cropped.ravel().astype(np.float32)
-    lo, hi = float(flat.min()), float(flat.max())
+    hist = _numba_histogram(cropped)
+    cdf = np.cumsum(hist) / cropped.size
 
-    bins = 1024
-    hist = cv2.calcHist([flat.reshape(-1, 1)], [0], None, [bins], [lo, hi]).ravel()
-    cdf = np.cumsum(hist) / hist.sum()
-    bin_edges = np.linspace(lo, hi, bins + 1)
+    min_val = float(np.searchsorted(cdf, lower_quantile))
+    max_val = float(np.searchsorted(cdf, upper_quantile))
 
-    min_val = float(bin_edges[np.searchsorted(cdf, lower_quantile)])
-    max_val = float(bin_edges[np.searchsorted(cdf, upper_quantile)])
+    diff = max_val - min_val
+    if diff > 0:
+        if image.ndim == 3:
+            _numba_normalize_inplace_3d(image, float(min_val), float(diff))
+        else:
+            _numba_normalize_inplace_2d(image, float(min_val), float(diff))
+    else:
+        image.fill(0.0)
 
-    t2 = time.perf_counter()
-
-    np.subtract(image, min_val, out=image)
-    np.divide(image, (max_val - min_val), out=image)
-    np.clip(image, 0.0, 1.0, out=image)
-
-    t3 = time.perf_counter()
-
-    print(f"Crop:       {(t1 - t0) * 1000:.2f}ms")
-    print(f"Quantile:   {(t2 - t1) * 1000:.2f}ms")  # vermutlich hier
-    print(f"Normalize:  {(t3 - t2) * 1000:.2f}ms")
     return image
 
 def get_outline_from_mask(mask_data):
@@ -89,25 +79,7 @@ def get_outline_from_mask(mask_data):
 
 
 def _process_2d_slice(mask_slice):
-    outline = np.zeros_like(mask_slice, dtype=np.uint16)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-
-    unique_ids = np.unique(mask_slice)
-    for cid in unique_ids:
-        if cid == 0: continue
-
-        cell_mask = (mask_slice == cid).astype(np.uint8)
-
-        # expand the mask of 1 pixel
-        dilated = cv2.dilate(cell_mask, kernel, iterations=1)
-
-        # every pixel that was added with dilated is the outline
-        cell_outline = (dilated - cell_mask) * cid
-
-        outline += cell_outline.astype(np.uint16)
-
-    return outline
-
+    return _numba_process_2d_slice(mask_slice)
 
 def _load_mask_data(path):
     data = np.load(path, allow_pickle=True).item()
@@ -119,26 +91,33 @@ def _load_mask_data(path):
 
 def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_quantile, auto_adjust=False, get_slice=-1, brightness=1.0, contrast=1.0,):
     shape = list(image.shape)
-    image = image.astype(np.float32)
     check = image.ndim == 3
 
-    t0 = time.perf_counter()
     if auto_adjust:
+        image = image.astype(np.float32)
         image = normalize_image(image, margin, lower_quantile, upper_quantile)
-        image = (image * 255.0).clip(0, 255).astype(np.uint8)
-    t1 = time.perf_counter()
-    print("time", (t1 - t0) * 1000)
-
-    if check:
-        if not get_slice == -1:
-            if 0 <= get_slice < image.shape[0]:
-                image = image[get_slice, :, :]
+        np.multiply(image, 255.0, out=image)
+        np.clip(image, 0.0, 255.0, out=image)
+        image = image.astype(np.uint8)
+        if check:
+            if not get_slice == -1:
+                if 0 <= get_slice < image.shape[0]:
+                    image = image[get_slice, :, :]
+                else:
+                    image = image[image.shape[0] - 1, :, :]
             else:
-                image = image[image.shape[0]-1,:,:]
-        else:
-            image = np.max(image, axis=0)
+                image = np.max(image, axis=0)
 
     if not auto_adjust:
+        if check:
+            if not get_slice == -1:
+                if 0 <= get_slice < image.shape[0]:
+                    image = image[get_slice, :, :]
+                else:
+                    image = image[image.shape[0] - 1, :, :]
+            else:
+                image = np.max(image, axis=0)
+
         if brightness != 1.0 or contrast != 1.0:
             mean_lum = np.mean(image)
 
@@ -152,10 +131,7 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
         else:
             image = cv2.convertScaleAbs(image, alpha=1 / 256.0)
 
-    t5 = time.perf_counter()
     image = rescale_image(image, mode, max_pixel, max_fraction)
-    t6 = time.perf_counter()
-    print("rescale", (t6 - t5) * 1000)
 
     return image, shape, check
 
@@ -174,18 +150,21 @@ def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color,
         mask_slice = mask
         outline_slice = outline
 
-    mask_slice = mask_slice.astype(np.uint16)
+    mask_slice = mask_slice.astype(np.uint16, copy=False)
+    outline_slice = outline_slice.astype(np.uint16, copy=False)
     mask_slice[outline_slice > 0] = 0
 
     mask_slice = rescale_image(mask_slice, mode, max_pixel, max_fraction, is_mask=True)
     if mode != "Disabled":
         outline_slice = get_outline_from_mask(mask_slice)
 
-    image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4),
-                          dtype=np.uint8)  # uint8 because here we dont use the cell_id's
+    image_mask = np.zeros((mask_slice.shape[0], mask_slice.shape[1], 4), dtype=np.uint8)
 
-    image_mask[mask_slice > 0] = (mask_color[2], mask_color[1], mask_color[0], opacity)
-    image_mask[outline_slice > 0] = (outline_color[2], outline_color[1], outline_color[0], 255)
+    _numba_build_canvas(
+        mask_slice, outline_slice, image_mask,
+        mask_color[2], mask_color[1], mask_color[0], opacity,
+        outline_color[2], outline_color[1], outline_color[0]
+    )
 
     encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]
     success, buffer = cv2.imencode('.webp', image_mask, encode_params)
@@ -206,26 +185,6 @@ def _get_cell_id_from_position(position, mask):
         if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1]:
             return mask[y, x]
         return None
-
-def get_bbox_3d(mask_array):
-    z_indices = np.where(np.any(mask_array, axis=(1, 2)))[0]
-    y_indices = np.where(np.any(mask_array, axis=(0, 2)))[0]
-    x_indices = np.where(np.any(mask_array, axis=(0, 1)))[0]
-
-    return (
-        z_indices.min(), z_indices.max() + 1,
-        y_indices.min(), y_indices.max() + 1,
-        x_indices.min(), x_indices.max() + 1
-    )
-
-def get_bbox_2d(mask_array):
-    y_indices = np.where(np.any(mask_array, axis=(1)))[0]
-    x_indices = np.where(np.any(mask_array, axis=(0)))[0]
-
-    return (
-        y_indices.min(), y_indices.max() + 1,
-        x_indices.min(), x_indices.max() + 1
-    )
 
 class FluorescenceCache:
     def __init__(self, max_values=1000): #1.000 Values: ~380 KB (0,38 MB)
@@ -255,8 +214,10 @@ class FluorescenceCache:
         if len(self.fluorescence_cache[image_dim][channel][zslice]) > self._max_values:
             self.fluorescence_cache[image_dim][channel][zslice].popitem(last=False)
 
-        cell_mask = mask == cell_id
-        val = float(np.mean(np_image[cell_mask]))
+        if mask.ndim == 3:
+            val = float(_numba_get_cell_mean_3d(mask, np_image, cell_id))
+        else:
+            val = float(_numba_get_cell_mean_2d(mask, np_image, cell_id))
 
         self.fluorescence_cache[image_dim][channel][zslice][cell_id] = val
         self.fluorescence_cache[image_dim][channel][zslice].move_to_end(cell_id)
@@ -343,9 +304,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack = deque(maxlen=self._max_history)
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0)
+                                     left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
-                                    expand=True, left=0, right=0, top=0, bottom=0, )
+                                     left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
                                         on_show_ids=self._handle_show_ids)
 
@@ -444,6 +405,7 @@ class ImageEditingView(ft.Card):
             on_click=self._toggle_shifting,
             tooltip="Shifts the IDs when a mask gets changed to restore a continuous order without gaps."
         )
+        self.mask_number = ft.Text("0",tooltip="Number of masks",weight=ft.FontWeight.BOLD,color=ft.Colors.WHITE,size=15)
         self.control_tools = ft.Container(ft.Container(ft.Row(
             [self._undo_button,
              self._redo_button,
@@ -469,14 +431,15 @@ class ImageEditingView(ft.Card):
              ),
              self._delete_mask_button,
              self._show_id_checkbox,
+             self.mask_number,
              ], spacing=2, alignment=ft.MainAxisAlignment.CENTER, height=38,
-        ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.border_radius.vertical(top=0, bottom=12),
+        ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.BorderRadius.vertical(top=0, bottom=12),
 
         ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
                                                                   self.drawing_tool,
-                                                                  ], expand=True), expand=True,
+                                                                  ]), expand=True,
                                                 max_scale=10)
 
         self.content = ft.Stack([
@@ -539,6 +502,7 @@ class ImageEditingView(ft.Card):
         self._delete_mask_button.icon_color = ft.Colors.WHITE_60
         self._delete_mask_button.disabled = False
         self.server._rendered_cache.clear()
+        self.mask_number.value = "0"
         if not without_update:
             self._main_image.update()
             self._mask_image.update()
@@ -550,6 +514,8 @@ class ImageEditingView(ft.Card):
             self._show_id_checkbox.update()
             self._id_info.update()
             self._delete_mask_button.update()
+            self.mask_number.update()
+        gc.collect()
 
     def select_image(self, img_id, channel_id, seg_channel_id,reload=False):
         if img_id is None or channel_id is None or seg_channel_id is None:
@@ -794,6 +760,7 @@ class ImageEditingView(ft.Card):
                         self._mask_button.tooltip = "Show mask"
                         self._mask_button.disabled = False
                         self._mask_button.update()
+                    self.page.run_task(self.update_mask_number)
                     return
 
         self._mask_path = None
@@ -805,6 +772,15 @@ class ImageEditingView(ft.Card):
         self._mask_button.icon_color = ft.Colors.BLACK_12
         self._mask_button.disabled = True
         self._mask_button.update()
+        self.mask_number.value = "0"
+        self.mask_number.update()
+
+    async def update_mask_number(self):
+        if self._mask_data is None:
+            return
+        total_masks = count_ids(self._mask_data["masks"], self._slice_id)
+        self.mask_number.value = str(total_masks)
+        self.mask_number.update()
 
     async def update_mask_image(self, reset=False):
         if reset:
@@ -842,6 +818,7 @@ class ImageEditingView(ft.Card):
             self._id_info.visible = False
             self._id_info.update()
 
+
     async def _async_update_mask_image(self):
         if self._mask_data is None:
             return
@@ -856,6 +833,8 @@ class ImageEditingView(ft.Card):
             self._mask_button.tooltip = "Show mask"
             self._mask_button.disabled = False
             self._mask_button.update()
+
+        self.page.run_task(self.update_mask_number)
 
     async def _show_mask(self, e):
         self._mask_image.visible = not self._mask_image.visible
@@ -913,7 +892,6 @@ class ImageEditingView(ft.Card):
     async def _async_draw_cell_3D(self, lines_data: list):
         # update the mask data
         # gets the pixels that build the lines of the drawn cell
-
         is_new_mask = False
         if self._mask_path is None:  # currently no mask is given
             if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
@@ -972,12 +950,12 @@ class ImageEditingView(ft.Card):
         x_min, y_min = np.min(pts, axis=0)
         x_max, y_max = np.max(pts, axis=0)
 
-        image_width, image_height = self.drawing_tool.get_bounds()
+        mask_height, mask_width = mask.shape[-2], mask.shape[-1]
         padding = 3
         y_min = max(0, y_min - padding)
         x_min = max(0, x_min - padding)
-        y_max = min(image_height, y_max + padding)
-        x_max = min(image_width, x_max + padding)
+        y_max = min(mask_height, y_max + padding)
+        x_max = min(mask_width, x_max + padding)
 
         patch_height = y_max - y_min
         patch_width = x_max - x_min
@@ -1011,19 +989,19 @@ class ImageEditingView(ft.Card):
             inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
 
         kernel = np.ones((3, 3), dtype=np.uint8)
-        inner_pixels = cv2.erode(temp_mask_patch, kernel)
-
-        outline_mask_patch = (
-                (temp_mask_patch == 1) &
-                (inner_pixels == 0)
-        )
-
-        fill_mask_patch = (
-                (temp_mask_patch == 1) &
-                (~outline_mask_patch)
-        )
 
         if draw_on_all_slices:
+            inner_pixels = cv2.erode(temp_mask_patch, kernel, borderValue=0)
+
+            outline_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (inner_pixels == 0)
+            )
+
+            fill_mask_patch = (
+                    (temp_mask_patch == 1) &
+                    (~outline_mask_patch)
+            )
             for z in range(mask_3d.shape[0]):
                 current_mask = mask_3d[z]
                 current_outline = outline_3d[z]
@@ -1074,7 +1052,8 @@ class ImageEditingView(ft.Card):
 
                     inner = cv2.erode(
                         cell,
-                        kernel
+                        kernel,
+                        borderValue = 0
                     )
 
                     cell_part = cell[y_min:y_max, x_min:x_max]
@@ -1106,7 +1085,7 @@ class ImageEditingView(ft.Card):
             mask_patch[valid_area_patch] = free_id
 
             current_cell_full_patch = (mask_patch == free_id).astype(np.uint8)
-            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel)
+            inner_pixels_patch = cv2.erode(current_cell_full_patch, kernel,borderValue=0)
 
             new_outline_mask_patch = (
                     (current_cell_full_patch == 1) &
@@ -1216,22 +1195,15 @@ class ImageEditingView(ft.Card):
 
         mask_data = self._mask_data["masks"]
         outline_data = self._mask_data["outlines"]
-        temp_mask_cell = np.zeros_like(mask_data, dtype=np.uint8)
-        for cid in unique_ids:
-            temp_mask_cell |= (mask_data == cid).astype(np.uint8)
-            temp_mask_cell |= (outline_data == cid).astype(np.uint8)
-
-        if not np.any(temp_mask_cell):
-            return
 
         if not self._image_3d:
-            y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
-            image_width, image_height = self.drawing_tool.get_bounds()
+            y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data, outline_data, unique_ids)
+            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
             padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
-            y_max = min(image_height, y_max + padding)
-            x_max = min(image_width, x_max + padding)
+            y_max = min(mask_height, y_max + padding)
+            x_max = min(mask_width, x_max + padding)
             old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1240,19 +1212,16 @@ class ImageEditingView(ft.Card):
             inverse_action = ("restore_state", (False, y_min, x_min, compressed_patch,patch_shape))
             mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max]
-            cell_mask = (mask_patch == cell_id)
-            cell_outline = (outline_patch == cell_id)
-            mask_patch[cell_mask] = 0
-            outline_patch[cell_outline] = 0
+            _numba_delete_ids_inplace_2d(mask_patch, outline_patch, unique_ids)
 
         else:
-            z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
-            image_width, image_height = self.drawing_tool.get_bounds()
+            z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
+            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
             padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
-            y_max = min(image_height, y_max + padding)
-            x_max = min(image_width, x_max + padding)
+            y_max = min(mask_height, y_max + padding)
+            x_max = min(mask_width, x_max + padding)
             old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1262,17 +1231,10 @@ class ImageEditingView(ft.Card):
             mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
-                unique_cell_ids = np.unique(cell_id[cell_id != 0])
-                for cid in unique_cell_ids:
-                    cell_mask = (mask_patch == cid)
-                    cell_outline = (outline_patch == cid)
-                    mask_patch[cell_mask] = 0
-                    outline_patch[cell_outline] = 0
+                _numba_delete_ids_inplace_3d(mask_patch, outline_patch, unique_ids)
             else:
-                cell_mask = (mask_patch == cell_id)
-                cell_outline = (outline_patch == cell_id)
-                mask_patch[cell_mask] = 0
-                outline_patch[cell_outline] = 0
+                single_id_arr = np.array([cell_id], dtype=np.uint16)
+                _numba_delete_ids_inplace_3d(mask_patch, outline_patch, single_id_arr)
 
         # delete saved fluorescence cache, if cell is deleted
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
@@ -1646,6 +1608,8 @@ class ImageEditingView(ft.Card):
             self._id_info.visible = False
             self._id_info.update()
             self._show_id_checkbox.update()
+            self.mask_number.value = "0"
+            self.mask_number.update()
             self.page.run_task(self.update_mask_image)
             self.page.run_task(self.on_mask_change, self._image_id, True)
 
