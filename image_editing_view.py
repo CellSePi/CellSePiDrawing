@@ -948,12 +948,12 @@ class ImageEditingView(ft.Card):
         x_min, y_min = np.min(pts, axis=0)
         x_max, y_max = np.max(pts, axis=0)
 
-        image_width, image_height = self.drawing_tool.get_bounds()
+        mask_height, mask_width = mask.shape[-2], mask.shape[-1]
         padding = 3
         y_min = max(0, y_min - padding)
         x_min = max(0, x_min - padding)
-        y_max = min(image_height, y_max + padding)
-        x_max = min(image_width, x_max + padding)
+        y_max = min(mask_height, y_max + padding)
+        x_max = min(mask_width, x_max + padding)
 
         patch_height = y_max - y_min
         patch_width = x_max - x_min
@@ -1196,12 +1196,12 @@ class ImageEditingView(ft.Card):
 
         if not self._image_3d:
             y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data, outline_data, unique_ids)
-            image_width, image_height = self.drawing_tool.get_bounds()
+            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
             padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
-            y_max = min(image_height, y_max + padding)
-            x_max = min(image_width, x_max + padding)
+            y_max = min(mask_height, y_max + padding)
+            x_max = min(mask_width, x_max + padding)
             old_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
@@ -1214,12 +1214,12 @@ class ImageEditingView(ft.Card):
 
         else:
             z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
-            image_width, image_height = self.drawing_tool.get_bounds()
+            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
             padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
-            y_max = min(image_height, y_max + padding)
-            x_max = min(image_width, x_max + padding)
+            y_max = min(mask_height, y_max + padding)
+            x_max = min(mask_width, x_max + padding)
             old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             contiguos_patch = np.ascontiguousarray(old_patch)
             compressed_patch = lz4.frame.compress(contiguos_patch)
