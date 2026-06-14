@@ -15,7 +15,7 @@ import lz4.frame
 import gc
 
 from drawing_tool import DrawingTool
-from drawing_util import search_free_id, mask_shifting, rgb_to_hex, count_ids, _numba_process_2d_slice, _numba_histogram, _numba_build_canvas, _numba_bbox_3d, _numba_bbox_2d
+from drawing_util import search_free_id, mask_shifting, rgb_to_hex, count_ids, _numba_process_2d_slice, _numba_histogram, _numba_build_canvas, _numba_normalize_inplace_3d, _numba_normalize_inplace_2d, _numba_get_cell_mean_3d, _numba_get_cell_mean_2d, _numba_delete_ids_inplace_3d, _numba_delete_ids_inplace_2d, _numba_bbox_for_ids_3d, _numba_bbox_for_ids_2d
 from media_server import MediaServer
 
 def rescale_image(image,rescale_mode,max_pixels,max_fraction, is_mask=False):
@@ -59,12 +59,12 @@ def normalize_image(image: np.ndarray, margin,lower_quantile,upper_quantile) -> 
 
     diff = max_val - min_val
     if diff > 0:
-        np.subtract(image, min_val, out=image)
-        np.divide(image, diff, out=image)
+        if image.ndim == 3:
+            _numba_normalize_inplace_3d(image, float(min_val), float(diff))
+        else:
+            _numba_normalize_inplace_2d(image, float(min_val), float(diff))
     else:
         image.fill(0.0)
-
-    np.clip(image, 0.0, 1.0, out=image)
 
     return image
 
@@ -96,7 +96,9 @@ def load_image(image,mode,max_pixel,max_fraction,margin,lower_quantile,upper_qua
     if auto_adjust:
         image = image.astype(np.float32)
         image = normalize_image(image, margin, lower_quantile, upper_quantile)
-        image = (image * 255.0).clip(0, 255).astype(np.uint8)
+        np.multiply(image, 255.0, out=image)
+        np.clip(image, 0.0, 255.0, out=image)
+        image = image.astype(np.uint8)
         if check:
             if not get_slice == -1:
                 if 0 <= get_slice < image.shape[0]:
@@ -148,7 +150,8 @@ def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color,
         mask_slice = mask
         outline_slice = outline
 
-    mask_slice = mask_slice.astype(np.uint16)
+    mask_slice = mask_slice.astype(np.uint16, copy=False)
+    outline_slice = outline_slice.astype(np.uint16, copy=False)
     mask_slice[outline_slice > 0] = 0
 
     mask_slice = rescale_image(mask_slice, mode, max_pixel, max_fraction, is_mask=True)
@@ -183,12 +186,6 @@ def _get_cell_id_from_position(position, mask):
             return mask[y, x]
         return None
 
-def get_bbox_3d(mask_array):
-    return _numba_bbox_3d(mask_array)
-
-def get_bbox_2d(mask_array):
-    return _numba_bbox_2d(mask_array)
-
 class FluorescenceCache:
     def __init__(self, max_values=1000): #1.000 Values: ~380 KB (0,38 MB)
         self.fluorescence_cache = OrderedDict()
@@ -217,8 +214,10 @@ class FluorescenceCache:
         if len(self.fluorescence_cache[image_dim][channel][zslice]) > self._max_values:
             self.fluorescence_cache[image_dim][channel][zslice].popitem(last=False)
 
-        cell_mask = mask == cell_id
-        val = float(np.mean(np_image[cell_mask]))
+        if mask.ndim == 3:
+            val = float(_numba_get_cell_mean_3d(mask, np_image, cell_id))
+        else:
+            val = float(_numba_get_cell_mean_2d(mask, np_image, cell_id))
 
         self.fluorescence_cache[image_dim][channel][zslice][cell_id] = val
         self.fluorescence_cache[image_dim][channel][zslice].move_to_end(cell_id)
@@ -891,7 +890,6 @@ class ImageEditingView(ft.Card):
     async def _async_draw_cell_3D(self, lines_data: list):
         # update the mask data
         # gets the pixels that build the lines of the drawn cell
-
         is_new_mask = False
         if self._mask_path is None:  # currently no mask is given
             if self._image_id is None or self._seg_channel_id is None or not self._image_id in self._main_paths or not self._seg_channel_id in \
@@ -1195,16 +1193,9 @@ class ImageEditingView(ft.Card):
 
         mask_data = self._mask_data["masks"]
         outline_data = self._mask_data["outlines"]
-        temp_mask_cell = np.zeros_like(mask_data, dtype=np.uint8)
-        for cid in unique_ids:
-            temp_mask_cell |= (mask_data == cid).astype(np.uint8)
-            temp_mask_cell |= (outline_data == cid).astype(np.uint8)
-
-        if not np.any(temp_mask_cell):
-            return
 
         if not self._image_3d:
-            y_min, y_max, x_min, x_max = get_bbox_2d(temp_mask_cell)
+            y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data, outline_data, unique_ids)
             image_width, image_height = self.drawing_tool.get_bounds()
             padding = 3
             y_min = max(0, y_min - padding)
@@ -1219,13 +1210,10 @@ class ImageEditingView(ft.Card):
             inverse_action = ("restore_state", (False, y_min, x_min, compressed_patch,patch_shape))
             mask_patch = self._mask_data["masks"][y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][y_min:y_max, x_min:x_max]
-            cell_mask = (mask_patch == cell_id)
-            cell_outline = (outline_patch == cell_id)
-            mask_patch[cell_mask] = 0
-            outline_patch[cell_outline] = 0
+            _numba_delete_ids_inplace_2d(mask_patch, outline_patch, unique_ids)
 
         else:
-            z_min, z_max, y_min, y_max, x_min, x_max = get_bbox_3d(temp_mask_cell)
+            z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
             image_width, image_height = self.drawing_tool.get_bounds()
             padding = 3
             y_min = max(0, y_min - padding)
@@ -1241,17 +1229,10 @@ class ImageEditingView(ft.Card):
             mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
             outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
-                unique_cell_ids = np.unique(cell_id[cell_id != 0])
-                for cid in unique_cell_ids:
-                    cell_mask = (mask_patch == cid)
-                    cell_outline = (outline_patch == cid)
-                    mask_patch[cell_mask] = 0
-                    outline_patch[cell_outline] = 0
+                _numba_delete_ids_inplace_3d(mask_patch, outline_patch, unique_ids)
             else:
-                cell_mask = (mask_patch == cell_id)
-                cell_outline = (outline_patch == cell_id)
-                mask_patch[cell_mask] = 0
-                outline_patch[cell_outline] = 0
+                single_id_arr = np.array([cell_id], dtype=np.uint16)
+                _numba_delete_ids_inplace_3d(mask_patch, outline_patch, single_id_arr)
 
         # delete saved fluorescence cache, if cell is deleted
         cache_2d = self._fluorescence_cache.fluorescence_cache.get(image_dim, {})
