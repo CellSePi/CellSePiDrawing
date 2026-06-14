@@ -1196,10 +1196,11 @@ class ImageEditingView(ft.Card):
         mask_data = self._mask_data["masks"]
         outline_data = self._mask_data["outlines"]
 
+        mask_height, mask_width = mask.shape[-2], mask.shape[-1]
+        padding = 3
+
         if not self._image_3d:
             y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data, outline_data, unique_ids)
-            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
-            padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
             y_max = min(mask_height, y_max + padding)
@@ -1215,24 +1216,38 @@ class ImageEditingView(ft.Card):
             _numba_delete_ids_inplace_2d(mask_patch, outline_patch, unique_ids)
 
         else:
-            z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
-            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
-            padding = 3
-            y_min = max(0, y_min - padding)
-            x_min = max(0, x_min - padding)
-            y_max = min(mask_height, y_max + padding)
-            x_max = min(mask_width, x_max + padding)
-            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
-            contiguos_patch = np.ascontiguousarray(old_patch)
-            compressed_patch = lz4.frame.compress(contiguos_patch)
-
-            patch_shape = contiguos_patch.shape
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
-            mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
-            outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
+                z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
+                y_min = max(0, y_min - padding)
+                x_min = max(0, x_min - padding)
+                y_max = min(mask_height, y_max + padding)
+                x_max = min(mask_width, x_max + padding)
+                old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                contiguos_patch = np.ascontiguousarray(old_patch)
+                compressed_patch = lz4.frame.compress(contiguos_patch)
+
+                patch_shape = contiguos_patch.shape
+                inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
+                mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
                 _numba_delete_ids_inplace_3d(mask_patch, outline_patch, unique_ids)
             else:
+                z_min = self._slice_id
+                z_max = self._slice_id+1
+                y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data[self._slice_id], outline_data[self._slice_id], unique_ids)
+                y_min = max(0, y_min - padding)
+                x_min = max(0, x_min - padding)
+                y_max = min(mask_height, y_max + padding)
+                x_max = min(mask_width, x_max + padding)
+                old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                contiguos_patch = np.ascontiguousarray(old_patch)
+                compressed_patch = lz4.frame.compress(contiguos_patch)
+
+                patch_shape = contiguos_patch.shape
+                inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
+                mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
+
                 single_id_arr = np.array([cell_id], dtype=np.uint16)
                 _numba_delete_ids_inplace_3d(mask_patch, outline_patch, single_id_arr)
 
