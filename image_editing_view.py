@@ -257,6 +257,7 @@ class ImageEditingView(ft.Card):
     _mode = "Disabled"
     _max_pixel = 1024
     _max_fraction = 0.25
+    _main_color = ft.Colors.BLUE_ACCENT
 
     @classmethod
     def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction):
@@ -270,10 +271,11 @@ class ImageEditingView(ft.Card):
             instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
 
 
-
-    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
+    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None, main_color:ft.Colors = None):
         super().__init__()
         ImageEditingView._instances.append(self)
+        if main_color is not None:
+            ImageEditingView._main_color = main_color
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
@@ -433,7 +435,7 @@ class ImageEditingView(ft.Card):
              self._show_id_checkbox,
              self.mask_number,
              ], spacing=2, alignment=ft.MainAxisAlignment.CENTER, height=38,
-        ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.BorderRadius.vertical(top=0, bottom=12),
+        ), bgcolor=self._main_color, expand=True, border_radius=ft.BorderRadius.vertical(top=0, bottom=12),
 
         ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
