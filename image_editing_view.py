@@ -226,16 +226,35 @@ class FluorescenceCache:
 
 
 class ImageCache:
-    def __init__(self, max_images=3):
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, max_images=3, error_manager = None):
+        if self._initialized:
+            if error_manager:
+                self._error_manager = error_manager
+            return
         self.cache = OrderedDict()
         self._max_images = max_images
+        self._error_manager = error_manager
+        self._initialized = True
 
     def get_image(self, path):
         if path in self.cache:
             self.cache.move_to_end(path)
             return self.cache[path]
         else:
-            image = tifffile.memmap(path,mode='r')
+            try:
+                image = tifffile.memmap(path, mode='r')
+            except Exception as e:
+                if self._error_manager is not None:
+                    self._error_manager.log_and_show(f"Could not read image file: {path}", e)
+                return None
             self.add_image(path, image)
             return image
 
@@ -258,6 +277,7 @@ class ImageEditingView(ft.Card):
     _max_pixel = 1024
     _max_fraction = 0.25
     _main_color = ft.Colors.BLUE_ACCENT
+    _error_manager = None
 
     @classmethod
     def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction):
@@ -271,11 +291,13 @@ class ImageEditingView(ft.Card):
             instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
 
 
-    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None, main_color:ft.Colors = None):
+    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None, main_color:ft.Colors = None, error_manager=None):
         super().__init__()
         ImageEditingView._instances.append(self)
         if main_color is not None:
             ImageEditingView._main_color = main_color
+        if error_manager is not None:
+            ImageEditingView._error_manager = error_manager
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
@@ -288,7 +310,7 @@ class ImageEditingView(ft.Card):
         self._seg_channel_id = None
         self._save_lock = None
         self._action_lock = None
-        self._image_cache = ImageCache()
+        self._image_cache = ImageCache(error_manager=self._error_manager)
         self._fluorescence_cache = FluorescenceCache()
         self._running_tasks = set()
         self.brightness = 1.0
@@ -1305,7 +1327,12 @@ class ImageEditingView(ft.Card):
         }
 
         async with self._save_lock:
-            await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+            try:
+                await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+            except Exception as e:
+                if self._error_manager is not None:
+                    self._error_manager.log_and_show("Error saving the mask data!", e)
+                return
         await self.on_mask_change(self._image_id, is_new_mask)
 
     def delete_mask(self):
@@ -1608,7 +1635,12 @@ class ImageEditingView(ft.Card):
     def reset_mask(self):
         if self._mask_path is not None:
             if os.path.exists(self._mask_path):
-                os.remove(self._mask_path)
+                try:
+                    os.remove(self._mask_path)
+                except Exception as e:
+                    if self._error_manager is not None:
+                        self._error_manager.log_and_show("Failed to delete the mask file.", e)
+                    return
             if self._mask_paths and self._image_id in self._mask_paths:
                 self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
             self._mask_path = None
