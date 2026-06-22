@@ -226,16 +226,35 @@ class FluorescenceCache:
 
 
 class ImageCache:
-    def __init__(self, max_images=3):
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, max_images=3, error_manager = None):
+        if self._initialized:
+            if error_manager:
+                self._error_manager = error_manager
+            return
         self.cache = OrderedDict()
         self._max_images = max_images
+        self._error_manager = error_manager
+        self._initialized = True
 
     def get_image(self, path):
         if path in self.cache:
             self.cache.move_to_end(path)
             return self.cache[path]
         else:
-            image = tifffile.memmap(path,mode='r')
+            try:
+                image = tifffile.memmap(path, mode='r')
+            except Exception as e:
+                if self._error_manager is not None:
+                    self._error_manager.log_and_show(f"Could not read image file: {path}", e)
+                return None
             self.add_image(path, image)
             return image
 
@@ -257,6 +276,8 @@ class ImageEditingView(ft.Card):
     _mode = "Disabled"
     _max_pixel = 1024
     _max_fraction = 0.25
+    _main_color = ft.Colors.BLUE_ACCENT
+    _error_manager = None
 
     @classmethod
     def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction):
@@ -270,10 +291,13 @@ class ImageEditingView(ft.Card):
             instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
 
 
-
-    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None):
+    def __init__(self, on_mask_change: typing.Callable[[str, bool], None] = None, main_color:ft.Colors = None, error_manager=None):
         super().__init__()
         ImageEditingView._instances.append(self)
+        if main_color is not None:
+            ImageEditingView._main_color = main_color
+        if error_manager is not None:
+            ImageEditingView._error_manager = error_manager
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
@@ -286,7 +310,7 @@ class ImageEditingView(ft.Card):
         self._seg_channel_id = None
         self._save_lock = None
         self._action_lock = None
-        self._image_cache = ImageCache()
+        self._image_cache = ImageCache(error_manager=self._error_manager)
         self._fluorescence_cache = FluorescenceCache()
         self._running_tasks = set()
         self.brightness = 1.0
@@ -433,7 +457,7 @@ class ImageEditingView(ft.Card):
              self._show_id_checkbox,
              self.mask_number,
              ], spacing=2, alignment=ft.MainAxisAlignment.CENTER, height=38,
-        ), bgcolor=ft.Colors.BLUE_ACCENT, expand=True, border_radius=ft.BorderRadius.vertical(top=0, bottom=12),
+        ), bgcolor=self._main_color, expand=True, border_radius=ft.BorderRadius.vertical(top=0, bottom=12),
 
         ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
@@ -801,6 +825,9 @@ class ImageEditingView(ft.Card):
             self._mask_button.icon_color = ft.Colors.BLACK_12
             self._mask_button.disabled = True
             self._mask_button.update()
+            self.mask_number.value = "0"
+            self.mask_number.update()
+
 
         if not self._mask_button.disabled:
             self._show_id_checkbox.disabled = False
@@ -1196,10 +1223,11 @@ class ImageEditingView(ft.Card):
         mask_data = self._mask_data["masks"]
         outline_data = self._mask_data["outlines"]
 
+        mask_height, mask_width = mask.shape[-2], mask.shape[-1]
+        padding = 3
+
         if not self._image_3d:
             y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data, outline_data, unique_ids)
-            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
-            padding = 3
             y_min = max(0, y_min - padding)
             x_min = max(0, x_min - padding)
             y_max = min(mask_height, y_max + padding)
@@ -1215,24 +1243,38 @@ class ImageEditingView(ft.Card):
             _numba_delete_ids_inplace_2d(mask_patch, outline_patch, unique_ids)
 
         else:
-            z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
-            mask_height, mask_width = mask.shape[-2], mask.shape[-1]
-            padding = 3
-            y_min = max(0, y_min - padding)
-            x_min = max(0, x_min - padding)
-            y_max = min(mask_height, y_max + padding)
-            x_max = min(mask_width, x_max + padding)
-            old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
-            contiguos_patch = np.ascontiguousarray(old_patch)
-            compressed_patch = lz4.frame.compress(contiguos_patch)
-
-            patch_shape = contiguos_patch.shape
-            inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
-            mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
-            outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
             if delete_cell_on_all_slices:
+                z_min, z_max, y_min, y_max, x_min, x_max = _numba_bbox_for_ids_3d(mask_data, outline_data, unique_ids)
+                y_min = max(0, y_min - padding)
+                x_min = max(0, x_min - padding)
+                y_max = min(mask_height, y_max + padding)
+                x_max = min(mask_width, x_max + padding)
+                old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                contiguos_patch = np.ascontiguousarray(old_patch)
+                compressed_patch = lz4.frame.compress(contiguos_patch)
+
+                patch_shape = contiguos_patch.shape
+                inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
+                mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
                 _numba_delete_ids_inplace_3d(mask_patch, outline_patch, unique_ids)
             else:
+                z_min = self._slice_id
+                z_max = self._slice_id+1
+                y_min, y_max, x_min, x_max = _numba_bbox_for_ids_2d(mask_data[self._slice_id], outline_data[self._slice_id], unique_ids)
+                y_min = max(0, y_min - padding)
+                x_min = max(0, x_min - padding)
+                y_max = min(mask_height, y_max + padding)
+                x_max = min(mask_width, x_max + padding)
+                old_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                contiguos_patch = np.ascontiguousarray(old_patch)
+                compressed_patch = lz4.frame.compress(contiguos_patch)
+
+                patch_shape = contiguos_patch.shape
+                inverse_action = ("restore_state", (True, z_min, y_min, x_min, compressed_patch, patch_shape))
+                mask_patch = self._mask_data["masks"][z_min:z_max, y_min:y_max, x_min:x_max]
+                outline_patch = self._mask_data["outlines"][z_min:z_max, y_min:y_max, x_min:x_max]
+
                 single_id_arr = np.array([cell_id], dtype=np.uint16)
                 _numba_delete_ids_inplace_3d(mask_patch, outline_patch, single_id_arr)
 
@@ -1285,7 +1327,12 @@ class ImageEditingView(ft.Card):
         }
 
         async with self._save_lock:
-            await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+            try:
+                await asyncio.to_thread(np.save, current_path, data_copy, allow_pickle=True)
+            except Exception as e:
+                if self._error_manager is not None:
+                    self._error_manager.log_and_show("Error saving the mask data!", e)
+                return
         await self.on_mask_change(self._image_id, is_new_mask)
 
     def delete_mask(self):
@@ -1588,7 +1635,12 @@ class ImageEditingView(ft.Card):
     def reset_mask(self):
         if self._mask_path is not None:
             if os.path.exists(self._mask_path):
-                os.remove(self._mask_path)
+                try:
+                    os.remove(self._mask_path)
+                except Exception as e:
+                    if self._error_manager is not None:
+                        self._error_manager.log_and_show("Failed to delete the mask file.", e)
+                    return
             if self._mask_paths and self._image_id in self._mask_paths:
                 self._mask_paths[self._image_id].pop(self._seg_channel_id, None)
             self._mask_path = None
