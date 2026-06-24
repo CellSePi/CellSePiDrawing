@@ -139,43 +139,6 @@ def _numba_process_2d_slice(mask_slice):
 
 
 @njit(cache=True, nogil=True)
-def _numba_histogram(arr):
-    hist = np.zeros(65536, dtype=np.uint64)
-    for val in arr.flat:
-        idx = int(val)
-        if 0 <= idx <= 65535:
-            hist[idx] += 1
-
-    return hist
-
-@njit(cache=True, nogil=True)
-def _numba_normalize_inplace_3d(arr, min_val, diff):
-    d0, d1, d2 = arr.shape
-    for z in range(d0):
-        for y in range(d1):
-            for x in range(d2):
-                val = (arr[z, y, x] - min_val) / diff
-                if val < 0.0:
-                    arr[z, y, x] = 0.0
-                elif val > 1.0:
-                    arr[z, y, x] = 1.0
-                else:
-                    arr[z, y, x] = val
-
-@njit(cache=True, nogil=True)
-def _numba_normalize_inplace_2d(arr, min_val, diff):
-    d0, d1 = arr.shape
-    for y in range(d0):
-        for x in range(d1):
-            val = (arr[y, x] - min_val) / diff
-            if val < 0.0:
-                arr[y, x] = 0.0
-            elif val > 1.0:
-                arr[y, x] = 1.0
-            else:
-                arr[y, x] = val
-
-@njit(cache=True, nogil=True)
 def _numba_build_canvas(mask_slice, outline_slice, image_mask, m_b, m_g, m_r, opacity, o_b, o_g, o_r):
     h, w = mask_slice.shape
     for y in range(h):
@@ -326,8 +289,6 @@ def _numba_get_cell_mean_2d(mask, image, cell_id):
 _dummy_uint16_3d = np.zeros((3, 10, 10), dtype=np.uint16)
 _dummy_uint16_2d = np.zeros((10, 10), dtype=np.uint16)
 _dummy_mask_flat = np.zeros(10, dtype=np.uint16)
-_dummy_float32_3d = np.zeros((3, 10, 10), dtype=np.float32)
-_dummy_float32_2d = np.zeros((10, 10), dtype=np.float32)
 _dummy_rgba = np.zeros((10, 10, 4), dtype=np.uint8)
 _uint8_3d = np.zeros((3, 10, 10), dtype=np.uint8)
 _dummy_ids_to_delete = np.array([1], dtype=np.uint16)
@@ -342,14 +303,6 @@ _numba_shift_mask(_dummy_mask_flat, _dummy_mask_flat)
 
 _numba_process_2d_slice(_dummy_uint16_2d)
 _numba_process_2d_slice(_dummy_uint16_3d[0])
-
-_numba_histogram(_dummy_float32_3d[..., 1:-1, 1:-1])
-_numba_histogram(_dummy_float32_2d[..., 1:-1, 1:-1])
-_numba_histogram(_dummy_float32_3d)
-_numba_histogram(_dummy_float32_2d)
-
-_numba_normalize_inplace_3d(_dummy_float32_3d, 0.0, 1.0)
-_numba_normalize_inplace_2d(_dummy_float32_2d, 0.0, 1.0)
 
 _numba_build_canvas(_dummy_uint16_2d, _dummy_uint16_2d, _dummy_rgba, 0,0,0,0, 0,0,0)
 
@@ -366,4 +319,4 @@ _numba_delete_ids_inplace_2d(_sliced_uint16_2d, _sliced_uint16_2d, _dummy_ids_to
 _numba_get_cell_mean_3d(_dummy_uint16_3d, _dummy_uint16_3d, 1)
 _numba_get_cell_mean_2d(_dummy_uint16_2d, _dummy_uint16_2d, 1)
 
-del _dummy_uint16_3d, _dummy_uint16_2d, _dummy_mask_flat, _dummy_float32_3d, _dummy_float32_2d, _dummy_rgba
+del _dummy_uint16_3d, _dummy_uint16_2d, _dummy_mask_flat, _dummy_rgba

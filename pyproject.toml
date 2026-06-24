@@ -10,7 +10,6 @@ authors = [
 ]
 dependencies = [
     "flet==0.85.3",
-    "pillow==12.2.0",
     "tifffile>=2026.3.3",
     "numpy==2.1.0",
     "opencv-python-headless==4.13.0.92",
@@ -21,7 +20,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["drawing_util", "drawing_tool", "image_editing_view", "media_server"]
+py-modules = ["drawing_util", "drawing_tool", "image_editing_view","image_util", "media_server"]
 license-files = ["licence"]
 
 [build-system]
