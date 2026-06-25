@@ -11,4 +11,4 @@ pip install git+https://github.com/CellSePi/CellSePiDrawing.git
 ```
 
 ## LICENSE
-This project is licensed under the **Apache License 2.0** – see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Apache-2.0 license** – see the [LICENSE](LICENSE) file for details.
