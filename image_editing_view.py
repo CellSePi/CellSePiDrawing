@@ -6,6 +6,8 @@ from collections import OrderedDict
 from pathlib import Path
 from collections import deque
 
+import torch
+from cellpose import dynamics
 import cv2
 import flet as ft
 import numpy as np
@@ -13,11 +15,13 @@ import tifffile
 import time
 import lz4.frame
 import gc
+import copy
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex, count_ids, _numba_process_2d_slice, _numba_build_canvas, _numba_get_cell_mean_3d, _numba_get_cell_mean_2d, _numba_delete_ids_inplace_3d, _numba_delete_ids_inplace_2d, _numba_bbox_for_ids_3d, _numba_bbox_for_ids_2d
 from image_util import normalize_image, rescale_image
 from media_server import MediaServer
+
 
 
 def get_outline_from_mask(mask_data):
@@ -123,6 +127,42 @@ def convert_npy_to_canvas(mask, outline,mode,max_pixel,max_fraction, mask_color,
 
     return base64.b64encode(buffer).decode('utf-8')
 
+def convert_npy_to_confidence_canvas(
+    overlay,
+    slice_id=-1,
+):
+    """
+    Konvertiert ein bereits erzeugtes RGBA-Confidence-Overlay
+    in ein Base64-kodiertes WebP-Bild.
+    """
+
+    if overlay.ndim == 4:
+        overlay_slice = (
+            overlay[slice_id]
+            if slice_id >= 0
+            else np.max(overlay, axis=0)
+        )
+    elif overlay.ndim == 3 and overlay.shape[-1] == 4:
+        overlay_slice = overlay
+    else:
+        raise ValueError(
+            f"Unerwartete Overlay-Form: {overlay.shape}"
+        )
+
+    overlay_slice = np.ascontiguousarray(
+        overlay_slice.astype(np.uint8, copy=False)
+    )
+
+    success, buffer = cv2.imencode(
+        ".webp",
+        overlay_slice,
+        [cv2.IMWRITE_WEBP_QUALITY, 101],
+    )
+
+    if not success:
+        raise ValueError("Confidence-Overlay konnte nicht kodiert werden.")
+
+    return base64.b64encode(buffer).decode("utf-8")
 
 def _get_cell_id_from_position(position, mask):
     """
@@ -253,8 +293,11 @@ class ImageEditingView(ft.Card):
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = None  # Could set a mask_path for TESTING
-        self._mask_data = None  # np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\Tif_3D\output\Series001c2_seg.npy"  # Could set a mask_path for TESTING
+        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._confidence_mask_paths=None
+        self._confidence_mask_path = None
+        self._confidence_mask_data = None #np.load(Path(self._confidence_mask_path), allow_pickle=True).item()
         self._slice_id = -1
         self._image_3d = False
         self._image_id = None
@@ -281,6 +324,8 @@ class ImageEditingView(ft.Card):
         self._edit_allowed = True
         self._mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                      left=0, right=0, top=0, bottom=0)
+        self._confidence_mask_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
+                                    left=0, right=0, top=0, bottom=0)
         self._main_image = ft.Image(src="Placeholder", fit=ft.BoxFit.CONTAIN, visible=False, gapless_playback=True,
                                      left=0, right=0, top=0, bottom=0)
         self.drawing_tool = DrawingTool(on_cell_drawn=self._cell_drawn, on_cell_deleted=self._delete_cell,
@@ -291,6 +336,11 @@ class ImageEditingView(ft.Card):
                                               shape=ft.RoundedRectangleBorder(radius=12), ),
                                           on_click=self._show_mask,
                                           tooltip="Show Mask", hover_color=ft.Colors.WHITE_12, disabled=True)
+        self._confidence_mask_button = ft.IconButton(icon=ft.Icons.HIGHLIGHT_ALT_ROUNDED, icon_color=ft.Colors.BLACK_12,
+                                          style=ft.ButtonStyle(
+                                              shape=ft.RoundedRectangleBorder(radius=12), ),
+                                          on_click=self._show_confidence_mask,
+                                          tooltip="Show Confidence Mask", hover_color=ft.Colors.WHITE_12, disabled=True)
         self._edit_button = ft.IconButton(icon=ft.Icons.BRUSH, icon_color=ft.Colors.BLACK_12,
                                           style=ft.ButtonStyle(
                                               shape=ft.RoundedRectangleBorder(radius=12), ), disabled=True,
@@ -389,6 +439,7 @@ class ImageEditingView(ft.Card):
              self._edit_button,
              self._delete_button,
              self._mask_button,
+             self._confidence_mask_button,
              self._slider_2d,
              ft.Container(
                  content=self._slider_2_5d,
@@ -414,6 +465,7 @@ class ImageEditingView(ft.Card):
         ))
         self.image_stack = ft.InteractiveViewer(content=ft.Stack([self._main_image,
                                                                   self._mask_image,
+                                                                  self._confidence_mask_image,
                                                                   self.drawing_tool,
                                                                   ]), expand=True,
                                                 max_scale=10)
@@ -429,6 +481,9 @@ class ImageEditingView(ft.Card):
 
     def set_main_paths(self, main_paths: list):
         self._main_paths = main_paths
+
+    def set_confidence_mask_paths(self, confidence_mask_paths: list):
+        self._confidence_mask_paths = confidence_mask_paths
 
     def set_colors(self, mask_color, outline_color, opacity):
         if mask_color is not None:
@@ -449,9 +504,14 @@ class ImageEditingView(ft.Card):
         self._mask_data = None
         self._mask_image.src = "Placeholder"
         self._mask_image.visible = False
+        self._confidence_mask_image.src = "Placeholder"
+        self._confidence_mask_image.visible = False
         self._mask_button.tooltip = "Show mask"
+        self._confidence_mask_button.tooltip = "Show Confidence Mask"
         self._mask_button.icon_color = ft.Colors.BLACK_12
+        self._confidence_mask_button.icon_color = ft.Colors.BLACK_12
         self._mask_button.disabled = True
+        self._confidence_mask_button.disabled = True
         self._edit_button.icon_color = ft.Colors.BLACK_12
         self._edit_button.disabled = True
         self._delete_button.icon_color = ft.Colors.BLACK_12
@@ -482,7 +542,9 @@ class ImageEditingView(ft.Card):
         if not without_update:
             self._main_image.update()
             self._mask_image.update()
+            self._confidence_mask_image.update()
             self._mask_button.update()
+            self._confidence_mask_button.update()
             self._edit_button.update()
             self._delete_button.update()
             self._redo_button.update()
@@ -502,9 +564,19 @@ class ImageEditingView(ft.Card):
         self._slice_id = -1 if not self._user_2_5d else self._slice_id
         if self._seg_channel_id != seg_channel_id or self._image_id != img_id or reload:
             await self._load_mask_image(img_id, seg_channel_id)
+            if self._confidence_mask_button.icon_color == ft.Colors.WHITE:
+                await self._load_confidence_mask_image(img_id, seg_channel_id)
+            else:
+                self._confidence_mask_image.visible = False
+                self._confidence_mask_image.src = "Placeholder"
+                self._confidence_mask_image.update()
+            #TODO hier maybe wenn vorhanden die confidence mask laden
             # reset undo/redo when a new image is selected
             if not self._mask_button.disabled:
                 self._show_id_checkbox.disabled = False
+                self._confidence_mask_button.disabled = False
+                self._confidence_mask_button.icon_color= ft.Colors.WHITE if self._confidence_mask_button.icon_color == ft.Colors.WHITE else ft.Colors.WHITE_60 #TODO: Check right white tone
+                self._confidence_mask_button.update()
                 if self._show_id_checkbox.selected:
                     self._show_id_checkbox.icon_color = ft.Colors.WHITE
                 else:
@@ -544,6 +616,7 @@ class ImageEditingView(ft.Card):
         self._image_3d = False
         self._main_image.src = "Placeholder"
         self._mask_image.visible = False
+        self._confidence_mask_image.visible =False
         self._main_image.update()
 
     async def _slider2d_update(self, e):
@@ -637,6 +710,9 @@ class ImageEditingView(ft.Card):
                     self._delete_button.update()
                 if not self._mask_button.disabled:
                     self._show_id_checkbox.disabled = False
+                    self._confidence_mask_button.disabled = False
+                    self._confidence_mask_button.icon_color = ft.Colors.WHITE_60
+                    self._confidence_mask_button.update()
                     if self._show_id_checkbox.selected:
                         self._show_id_checkbox.icon_color = ft.Colors.WHITE
                     else:
@@ -673,6 +749,9 @@ class ImageEditingView(ft.Card):
                 if self._slider_2_5d.opacity != 1.0:
                     if not self._mask_button.disabled:
                         self._show_id_checkbox.disabled = False
+                        self._confidence_mask_button.disabled = False
+                        self._confidence_mask_button.icon_color = ft.Colors.WHITE_60
+                        self._confidence_mask_button.update()
                         if self._show_id_checkbox.selected:
                             self._show_id_checkbox.icon_color = ft.Colors.WHITE
                         else:
@@ -751,6 +830,73 @@ class ImageEditingView(ft.Card):
         self.mask_number.value = "0"
         self.mask_number.update()
 
+    async def _load_confidence_mask_image(self, img_id, seg_channel_id):
+        # 1. Prüfen, ob eine normale Segmentierungsmaske verfügbar ist
+        if (self._mask_button.disabled or self._mask_data is None) and not self._confidence_mask_button.icon_color == ft.Colors.WHITE :
+            self._confidence_mask_image.visible = False
+            self._confidence_mask_image.src = "Placeholder"
+            self._confidence_mask_image.update()
+            return
+
+        # 2. Prüfen, ob die Confidence-Maske bereits geladen ist
+        if (self._confidence_mask_data is not None
+                and self._confidence_mask_path is not None
+                and self._confidence_mask_path == self._get_confidence_mask_path(img_id, seg_channel_id)
+        ):
+            pass  # Daten können direkt wiederverwendet werden
+
+        else:
+            confidence_path = self._get_confidence_mask_path(
+                img_id, seg_channel_id
+            )
+
+            # 3. Existiert die gespeicherte Confidence-Maske?
+            if confidence_path is not None and confidence_path.exists():
+                self._confidence_mask_data = await asyncio.to_thread(
+                    _load_mask_data, confidence_path
+                )
+                self._confidence_mask_path = confidence_path
+
+            else:
+                # 4. Confidence-Maske neu generieren
+                if "flows" not in self._mask_data:
+                    self.page.show_dialog(ft.SnackBar(ft.Text("There are no flow values. Retrain model.")))
+                    self.page.update()
+                    return
+                self._confidence_mask_data = await asyncio.to_thread(
+                    self._generate_confidence_mask,
+                    self._mask_data,
+                )
+
+
+                # 5. Neu erzeugte Maske speichern
+                # Hier deine Speicherfunktion aufrufen und den Pfad registrieren
+                self._confidence_mask_path = await asyncio.to_thread(
+                    self._save_confidence_mask,
+                    img_id,
+                    seg_channel_id,
+                    self._confidence_mask_data,
+                )
+
+                # Pfad im Dictionary aktualisieren
+                if self._confidence_mask_paths is None:
+                    self._confidence_mask_paths = {}
+
+                self._confidence_mask_paths.setdefault(img_id, {})[
+                    seg_channel_id
+                ] = self._confidence_mask_path
+
+        # 6. Overlay für den aktuellen Slice erzeugen
+        data = await asyncio.to_thread(
+                    convert_npy_to_confidence_canvas,
+                    self._confidence_mask_data["overlay"],
+                    self._slice_id,
+                )
+
+        self._confidence_mask_image.src = data
+        self._confidence_mask_image.visible = True
+        self._confidence_mask_image.update()
+
     async def update_mask_number(self):
         if self._mask_data is None:
             return
@@ -821,6 +967,20 @@ class ImageEditingView(ft.Card):
         self._mask_button.icon_color = ft.Colors.WHITE if self._mask_image.visible else ft.Colors.WHITE_60
         self._mask_button.tooltip = "Hide mask" if self._mask_image.visible else "Show mask"
         self._mask_button.update()
+
+    async def _show_confidence_mask(self):
+        self._confidence_mask_image.visible = not self._confidence_mask_image.visible
+        self._confidence_mask_image.update()
+        self._confidence_mask_button.icon_color = ft.Colors.WHITE if self._confidence_mask_image.visible else ft.Colors.WHITE_60
+        self._confidence_mask_button.tooltip = "Hide Confidence Mask" if self._confidence_mask_image.visible else "Show Confidence Mask"
+        self._confidence_mask_button.update()
+
+        if self._confidence_mask_image.visible:
+            await self._load_confidence_mask_image(
+                self._image_id,
+                self._seg_channel_id,
+            )
+
 
     async def _toggle_draw(self, e):
         self._edit_button.icon_color = ft.Colors.WHITE if self._edit_button.icon_color == ft.Colors.WHITE_60 else ft.Colors.WHITE_60
@@ -902,6 +1062,7 @@ class ImageEditingView(ft.Card):
 
         mask = self._mask_data["masks"]
         outline = self._mask_data["outlines"]
+
 
         mask_3d = mask if mask.ndim == 3 else None
         outline_3d = outline if outline.ndim == 3 else None
@@ -1075,27 +1236,18 @@ class ImageEditingView(ft.Card):
             outline_patch[new_outline_mask_patch] = free_id
 
         if draw_on_all_slices:
-            self._mask_data = {
-                "masks": mask_3d,
-                "outlines": outline_3d
-            }
+            self.update_mask_arrays(mask_3d, outline_3d)
 
         elif self._image_3d:
 
             mask_3d[self._slice_id] = mask
             outline_3d[self._slice_id] = outline
 
-            self._mask_data = {
-                "masks": mask_3d,
-                "outlines": outline_3d
-            }
+            self.update_mask_arrays(mask_3d, outline_3d)
 
         else:
 
-            self._mask_data = {
-                "masks": mask,
-                "outlines": outline
-            }
+            self.update_mask_arrays(mask, outline)
 
         if self._shifting_check_box.selected:
             mapping = await asyncio.to_thread(mask_shifting, self._mask_data)
@@ -1107,6 +1259,9 @@ class ImageEditingView(ft.Card):
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
         self._update_undo_redo_buttons()
+
+        self._confidence_mask_button.tooltip = "Attention, you changed the mask data. Confidence values may be outdated."
+        self._confidence_mask_button.update()
 
         await self.update_mask_image()
         if not self._mask_image.visible:
@@ -1171,6 +1326,8 @@ class ImageEditingView(ft.Card):
 
         if len(unique_ids) == 0:
             return
+
+        await self._remove_cell_from_confidence_mask(cell_id)
 
         mask_data = self._mask_data["masks"]
         outline_data = self._mask_data["outlines"]
@@ -1258,6 +1415,7 @@ class ImageEditingView(ft.Card):
         self._undo_stack.append(inverse_action)
         self._redo_stack.clear()
         self._update_undo_redo_buttons()
+
         await self.update_mask_image()
         self._trigger_background_save()
 
@@ -1273,10 +1431,7 @@ class ImageEditingView(ft.Card):
         if self._save_lock is None:
             self._save_lock = asyncio.Lock()
 
-        data_copy = {
-            "masks": current_data["masks"].copy(),
-            "outlines": current_data["outlines"].copy()
-        }
+        data_copy = copy.deepcopy(current_data)
 
         async with self._save_lock:
             try:
@@ -1640,3 +1795,374 @@ class ImageEditingView(ft.Card):
         self._redo_button.icon_color = ft.Colors.WHITE_60 if len(self._redo_stack) > 0 else ft.Colors.BLACK_12
         self._redo_button.update()
 
+    def _generate_confidence_mask(self, data):
+        """
+        Erzeugt ein Confidence-Overlay für die vorhandene Segmentierungsmaske.
+        Das Ergebnis enthält zusätzlich die Originalmasken und Umrisse.
+        """
+        masks = data["masks"]
+        outlines = data["outlines"]
+        dP = np.asarray(data["flows"][4][:2], dtype=np.float32)
+        flow_threshold=0.4
+        print("Mask shape:", masks.shape)
+        print("Mask ndim:", masks.ndim)
+        print("Mask dtype:", masks.dtype)
+        print("Mask unique IDs:",np.unique(masks))
+
+        cell_ids = np.unique(masks)
+        cell_ids = cell_ids[cell_ids > 0]
+
+        errors_by_id = {}
+
+        for cell_id in cell_ids:
+            # Temporäre Maske nur für diese Zelle
+            single_mask = (masks == cell_id).astype(np.int32)
+
+            try:
+                errors, _ = dynamics.flow_error(
+                    single_mask,
+                    dP,
+                    device=torch.device("cpu"),
+                )
+
+                errors = np.asarray(errors).ravel()
+
+                if errors.size > 0:
+                    errors_by_id[int(cell_id)] = float(errors[0])
+
+            except (ValueError, IndexError) as e:
+                print(f"Flow error für Zelle {cell_id} fehlgeschlagen: {e}")
+
+        if masks.ndim != 2:
+            raise ValueError(
+                "Flow values can only be calculated for a 2D mask"
+            )
+
+
+        # Nur Zellen mit Flow-Fehler UNTER 0.4 markieren
+        low_confidence_ids = [
+            cell_id for cell_id, error in errors_by_id.items()
+            if error > flow_threshold
+        ]
+
+        high_confidence_ids=[
+            cell_id for cell_id, error in errors_by_id.items()
+            if error < flow_threshold
+        ]
+
+        print("Zellen unter Flow-Threshold:", high_confidence_ids)
+        print("Zellen über Flow-Threshold:", low_confidence_ids)
+
+        # Vorläufige IDs zum Testen; später durch die berechneten IDs ersetzen.
+        #low_confidence_ids = [2, 5, 9]
+        #high_confidence_ids = [1, 3, 4]
+
+        def create_slice_overlay(mask_slice):
+            low_overlay = self.create_dashed_mask(
+                mask_slice,
+                low_confidence_ids,
+                color=(0, 255, 255),
+            )
+
+            high_overlay = self.create_dashed_mask(
+                mask_slice,
+                high_confidence_ids,
+                color=(255, 165, 0),
+            )
+
+            overlay = low_overlay.copy()
+            high_pixels = high_overlay[:, :, 3] > 0
+            overlay[high_pixels] = high_overlay[high_pixels]
+
+            return overlay
+
+        # Für 2D-Masken direkt ein Overlay erstellen.
+        if masks.ndim == 2:
+            overlay = create_slice_overlay(masks)
+
+        # Für 3D-Masken ein Overlay für jeden Slice erstellen.
+        elif masks.ndim == 3:
+            overlay = np.stack(
+                [create_slice_overlay(mask_slice) for mask_slice in masks],
+                axis=0,
+            )
+
+        else:
+            raise ValueError(f"Unerwartete Maskenform: {masks.shape}")
+
+        return {
+            "masks": masks.copy(),
+            "outlines": outlines.copy(),
+            "overlay": overlay,
+            "low_confidence_ids": low_confidence_ids,
+            "high_confidence_ids": high_confidence_ids,
+        }
+
+    def _generate_confidence_mask_3D(self, data):
+        from cellpose import dynamics
+
+        masks = data["masks"]
+        outlines = data["outlines"]
+        flows = data["flows"]
+
+        flow_threshold = 0.4
+
+        def process_slice(mask_slice, flow_slice):
+            # Die beiden XY-Flow-Komponenten für diesen Slice
+            dP = np.asarray(flow_slice)[:2]
+
+            errors, _ = dynamics.flow_error(mask_slice, dP)
+
+            cell_ids = np.unique(mask_slice)
+            cell_ids = cell_ids[cell_ids > 0]
+
+            low_confidence_ids = []
+            high_confidence_ids = []
+
+            for cell_id in cell_ids:
+                idx = int(cell_id) - 1
+
+                if idx >= len(errors):
+                    continue
+
+                error = float(errors[idx])
+
+                if error > flow_threshold:
+                    low_confidence_ids.append(int(cell_id))
+                else:
+                    high_confidence_ids.append(int(cell_id))
+
+            low_overlay = self.create_dashed_mask(
+                mask_slice,
+                low_confidence_ids,
+                color=(255, 165, 0),  # Orange
+            )
+
+            high_overlay = self.create_dashed_mask(
+                mask_slice,
+                high_confidence_ids,
+                color=(0, 255, 255),  # Cyan
+            )
+
+            overlay = low_overlay.copy()
+            high_pixels = high_overlay[:, :, 3] > 0
+            overlay[high_pixels] = high_overlay[high_pixels]
+
+            return (
+                overlay,
+                low_confidence_ids,
+                high_confidence_ids,
+                errors,
+            )
+
+        # Flow-Daten aus der gespeicherten Cellpose-Datei
+        saved_flows = np.asarray(flows[4])
+
+        if masks.ndim == 2:
+            result = process_slice(masks, saved_flows)
+
+            overlay, low_ids, high_ids, errors = result
+
+            return {
+                "masks": masks.copy(),
+                "outlines": outlines.copy(),
+                "overlay": overlay,
+                "low_confidence_ids": low_ids,
+                "high_confidence_ids": high_ids,
+                "flow_errors": errors,
+            }
+
+        elif masks.ndim == 3:
+            overlays = []
+            low_ids_by_slice = []
+            high_ids_by_slice = []
+            errors_by_slice = []
+
+            for z, mask_slice in enumerate(masks):
+                # Annahme: flows[4] hat die Form (3, Z, H, W)
+                # oder die Flow-Daten liegen in einer anderen Form vor.
+                flow_slice = saved_flows[:2, z]
+
+                overlay, low_ids, high_ids, errors = process_slice(
+                    mask_slice,
+                    flow_slice,
+                )
+
+                overlays.append(overlay)
+                low_ids_by_slice.append(low_ids)
+                high_ids_by_slice.append(high_ids)
+                errors_by_slice.append(errors)
+
+            return {
+                "masks": masks.copy(),
+                "outlines": outlines.copy(),
+                "overlay": np.stack(overlays, axis=0),
+                "low_confidence_ids": low_ids_by_slice,
+                "high_confidence_ids": high_ids_by_slice,
+                "flow_errors": errors_by_slice,
+            }
+
+        else:
+            raise ValueError(f"Unerwartete Maskenform: {masks.shape}")
+
+    def _save_confidence_mask(self, img_id, seg_channel_id, confidence_data):
+        path = self._get_confidence_mask_path(img_id, seg_channel_id)
+
+        if path is None:
+            raise ValueError("Kein Speicherpfad für die Confidence-Maske vorhanden.")
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        np.save(path, confidence_data, allow_pickle=True)
+        print("yes saved")
+
+        return path
+
+    def _get_confidence_mask_path(self, img_id, seg_channel_id):
+        """
+        Gibt den Speicherpfad für die Confidence-Maske einer
+        bestimmten Aufnahme und eines Segmentierungskanals zurück.
+        """
+
+        # if path is already there
+        if (self._confidence_mask_paths is not None
+                and img_id in self._confidence_mask_paths
+                and seg_channel_id in self._confidence_mask_paths[img_id]):
+
+            return Path(self._confidence_mask_paths[img_id][seg_channel_id])
+
+        # get path of image
+        image_path = self._main_paths.get(img_id, {}).get(seg_channel_id)
+
+        if image_path is None:
+            return None
+
+        image_path = Path(image_path)
+
+        # Separater Unterordner neben der Originaldatei
+        confidence_dir = image_path.parent / "confidence_masks"
+        confidence_dir.mkdir(parents=True, exist_ok=True)
+
+        # Eindeutiger Dateiname aus dem Originaldateinamen
+        confidence_path = (confidence_dir / f"{image_path.stem}_confidence.npy")
+
+        return confidence_path
+
+    def create_dashed_mask(
+            self,
+            masks: np.ndarray,
+            cell_ids: list[int],
+            color: tuple[int, int, int] = (255, 255, 0),
+            thickness: int = 3,
+            spacing: int = 12,
+            alpha: int = 200,
+    ) -> np.ndarray:
+        """
+        Erzeugt ein transparentes RGBA-Overlay mit langen diagonalen Linien
+        innerhalb ausgewählter Cell-IDs.
+
+        masks: Instanzmaske mit 0 als Hintergrund.
+        cell_ids: IDs der Zellen, die schraffiert werden sollen.
+        color: RGB-Farbe der Schraffur.
+        thickness: Dicke der Linien.
+        spacing: Abstand zwischen den diagonalen Linien.
+        alpha: Transparenz der Linien (0-255).
+        """
+        height, width = masks.shape[:2]
+
+        overlay = np.zeros((height, width, 4), dtype=np.uint8)
+        pattern = np.zeros((height, width), dtype=np.uint8)
+
+        # Lange diagonale Linien über das gesamte Bild zeichnen.
+        # Die Linien werden anschließend auf die Zellflächen begrenzt.
+        for offset in range(-height, width, spacing):
+            cv2.line(
+                pattern,
+                (offset, 0),
+                (offset + height, height),
+                255,
+                thickness,
+                cv2.LINE_8,
+            )
+
+        # Muster auf die ausgewählten Zellen beschränken.
+        selected = np.isin(masks, cell_ids)
+        visible = (pattern > 0) & selected
+
+        overlay[visible, 0] = color[0]
+        overlay[visible, 1] = color[1]
+        overlay[visible, 2] = color[2]
+        overlay[visible, 3] = alpha
+
+        return overlay
+
+    def update_mask_arrays(self,masks: np.ndarray, outlines: np.ndarray):
+        if self._mask_data is None:
+            self._mask_data = {}
+
+        self._mask_data["masks"] = masks
+        self._mask_data["outlines"] = outlines
+
+    async def _remove_cell_from_confidence_mask(
+            self,
+            cell_id: int,
+    ) -> None:
+
+        img_id = self._image_id
+        seg_channel_id = self._seg_channel_id
+
+        # 1. Confidence-Maske bei Bedarf von der Festplatte laden
+        confidence_path = self._get_confidence_mask_path(
+            img_id, seg_channel_id
+        )
+
+        if (self._confidence_mask_data is None or self._confidence_mask_path != confidence_path):
+            if confidence_path is None or not confidence_path.exists():
+                return
+
+            self._confidence_mask_data = await asyncio.to_thread(
+                _load_mask_data, confidence_path
+            )
+            self._confidence_mask_path = confidence_path
+
+        # 2. Prüfen, ob die Daten ein Overlay enthalten
+        if self._confidence_mask_data is None:
+            return
+
+        overlay = self._confidence_mask_data.get("overlay")
+        if overlay is None:
+            return
+
+        # 3. Segmentierungsmaske muss noch die zu löschende Zelle enthalten
+        if self._mask_data is None:
+            print("Please load segmentation mask.")
+            return
+
+        masks = self._mask_data["masks"]
+        outlines = self._mask_data["outlines"]
+
+        deleted_pixels = (
+                (masks == cell_id) | (outlines == cell_id)
+        )
+
+        # 4. Confidence-Schraffur der Zelle entfernen
+        overlay[deleted_pixels] = 0
+        self._confidence_mask_data["overlay"] = overlay
+
+        # 5. Aktualisierte Confidence-Maske speichern
+        await asyncio.to_thread(
+            self._save_confidence_mask,
+            img_id,
+            seg_channel_id,
+            self._confidence_mask_data,
+        )
+
+        # 6. Anzeige nur aktualisieren, wenn sie aktiviert ist
+        if self._confidence_mask_button.icon_color == ft.Colors.WHITE:
+            await self._load_confidence_mask_image(
+                img_id,
+                seg_channel_id,
+            )
+        else:
+            self._confidence_mask_image.visible = False
+            self._confidence_mask_image.update()
