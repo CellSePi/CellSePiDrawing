@@ -293,8 +293,8 @@ class ImageEditingView(ft.Card):
         self.server = MediaServer()
         self._mask_paths = None
         self._main_paths = None
-        self._mask_path = r"C:\Users\Jenna\Studium\FS5\data\data\Tif_3D\output\Series001c2_seg.npy"  # Could set a mask_path for TESTING
-        self._mask_data = np.load(Path(self._mask_path), allow_pickle=True).item()
+        self._mask_path = None  # Could set a mask_path for TESTING
+        self._mask_data = None  # np.load(Path(self._mask_path), allow_pickle=True).item()
         self._confidence_mask_paths=None
         self._confidence_mask_path = None
         self._confidence_mask_data = None #np.load(Path(self._confidence_mask_path), allow_pickle=True).item()
