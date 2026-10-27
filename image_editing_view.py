@@ -19,7 +19,7 @@ import copy
 
 from drawing_tool import DrawingTool
 from drawing_util import search_free_id, mask_shifting, rgb_to_hex, count_ids, _numba_process_2d_slice, _numba_build_canvas, _numba_get_cell_mean_3d, _numba_get_cell_mean_2d, _numba_delete_ids_inplace_3d, _numba_delete_ids_inplace_2d, _numba_bbox_for_ids_3d, _numba_bbox_for_ids_2d
-from image_util import normalize_image, rescale_image
+from fast_image_util import rescale_image, normalize_image
 from media_server import MediaServer
 
 

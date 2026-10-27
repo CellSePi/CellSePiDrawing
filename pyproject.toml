@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["drawing_util", "drawing_tool", "image_editing_view","image_util", "media_server"]
+py-modules = ["drawing_util", "drawing_tool", "image_editing_view","fast_image_util", "media_server"]
 license-files = ["licence"]
 
 [build-system]
