@@ -23,7 +23,6 @@ from fast_image_util import rescale_image, normalize_image
 from media_server import MediaServer
 
 
-
 def get_outline_from_mask(mask_data):
     if mask_data.ndim == 3:
         outline = np.zeros_like(mask_data, dtype=np.uint16)
@@ -269,16 +268,21 @@ class ImageEditingView(ft.Card):
     _max_pixel = 1024
     _max_fraction = 0.25
     _main_color = ft.Colors.BLUE_ACCENT
+    _flow_threshold= 0.4
+    _eval_without_threshold=False
     _error_manager = None
 
     @classmethod
-    def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction):
+    def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction, flow_threshold,eval_without_threshold):
         cls._margin = margin
         cls._lower_quantile = low
         cls._upper_quantile = up
         cls._mode = mode
         cls._max_pixel = max_pixel
         cls._max_fraction = max_fraction
+        cls._flow_threshold = flow_threshold
+        cls._eval_without_threshold = eval_without_threshold
+
         for instance in cls._instances:
             instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
 
@@ -391,7 +395,7 @@ class ImageEditingView(ft.Card):
                 border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=10,
                 bgcolor=ft.Colors.BLACK_26,
-                width=120,
+                width=180,
                 column_spacing=8,
 
             ),
@@ -471,7 +475,7 @@ class ImageEditingView(ft.Card):
                                                 max_scale=10)
 
         self.content = ft.Stack([
-            ft.Column(controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True),
+            ft.Column(controls=[ft.Container(self.image_stack, alignment=ft.Alignment.CENTER, expand=True, padding=ft.Padding.only(top=5,bottom=5),),
                                 self.control_tools], spacing=0),
             self._id_info,
         ])
@@ -1797,13 +1801,15 @@ class ImageEditingView(ft.Card):
 
     def _generate_confidence_mask(self, data):
         """
-        Erzeugt ein Confidence-Overlay für die vorhandene Segmentierungsmaske.
-        Das Ergebnis enthält zusätzlich die Originalmasken und Umrisse.
+        Generates a dashedConfidence-Overlay for the current
+        segmentation mask.
+        data: The current segmentation mask data.
         """
         masks = data["masks"]
         outlines = data["outlines"]
         dP = np.asarray(data["flows"][4][:2], dtype=np.float32)
-        flow_threshold=0.4
+        flow_threshold= 0.0 if ImageEditingView._eval_without_threshold else ImageEditingView._flow_threshold
+        print("flow_threshold", flow_threshold)
         print("Mask shape:", masks.shape)
         print("Mask ndim:", masks.ndim)
         print("Mask dtype:", masks.dtype)
@@ -1831,7 +1837,7 @@ class ImageEditingView(ft.Card):
                     errors_by_id[int(cell_id)] = float(errors[0])
 
             except (ValueError, IndexError) as e:
-                print(f"Flow error für Zelle {cell_id} fehlgeschlagen: {e}")
+                print(f"Unable to calculate flow error for {cell_id}: {e}")
 
         if masks.ndim != 2:
             raise ValueError(
@@ -1858,6 +1864,7 @@ class ImageEditingView(ft.Card):
         #high_confidence_ids = [1, 3, 4]
 
         def create_slice_overlay(mask_slice):
+            #low confidence ids are dashed in orange
             low_overlay = self.create_dashed_mask(
                 mask_slice,
                 low_confidence_ids,
@@ -1888,11 +1895,9 @@ class ImageEditingView(ft.Card):
             )
 
         else:
-            raise ValueError(f"Unerwartete Maskenform: {masks.shape}")
+            raise ValueError(f"Unknown mask shape: {masks.shape}")
 
         return {
-            "masks": masks.copy(),
-            "outlines": outlines.copy(),
             "overlay": overlay,
             "low_confidence_ids": low_confidence_ids,
             "high_confidence_ids": high_confidence_ids,
@@ -2009,20 +2014,15 @@ class ImageEditingView(ft.Card):
         path = self._get_confidence_mask_path(img_id, seg_channel_id)
 
         if path is None:
-            raise ValueError("Kein Speicherpfad für die Confidence-Maske vorhanden.")
+            raise ValueError("No valid path error.")
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
         np.save(path, confidence_data, allow_pickle=True)
-        print("yes saved")
 
         return path
 
     def _get_confidence_mask_path(self, img_id, seg_channel_id):
-        """
-        Gibt den Speicherpfad für die Confidence-Maske einer
-        bestimmten Aufnahme und eines Segmentierungskanals zurück.
-        """
 
         # if path is already there
         if (self._confidence_mask_paths is not None
@@ -2058,23 +2058,22 @@ class ImageEditingView(ft.Card):
             alpha: int = 200,
     ) -> np.ndarray:
         """
-        Erzeugt ein transparentes RGBA-Overlay mit langen diagonalen Linien
-        innerhalb ausgewählter Cell-IDs.
+        Generates transparent RGBA-Overlay with dashed
+        lines for the list of cell ids
 
-        masks: Instanzmaske mit 0 als Hintergrund.
-        cell_ids: IDs der Zellen, die schraffiert werden sollen.
-        color: RGB-Farbe der Schraffur.
-        thickness: Dicke der Linien.
-        spacing: Abstand zwischen den diagonalen Linien.
-        alpha: Transparenz der Linien (0-255).
+        masks: Segmentation mask with 0 background.
+        cell_ids: IDs that should be dashed.
+        color: RGB-color.
+        thickness: Line thickness.
+        spacing: Distance between the single lines.
+        alpha: Transparency of lines (0-255).
         """
         height, width = masks.shape[:2]
 
         overlay = np.zeros((height, width, 4), dtype=np.uint8)
         pattern = np.zeros((height, width), dtype=np.uint8)
 
-        # Lange diagonale Linien über das gesamte Bild zeichnen.
-        # Die Linien werden anschließend auf die Zellflächen begrenzt.
+        #create dashed lines over the whole image
         for offset in range(-height, width, spacing):
             cv2.line(
                 pattern,
@@ -2085,7 +2084,7 @@ class ImageEditingView(ft.Card):
                 cv2.LINE_8,
             )
 
-        # Muster auf die ausgewählten Zellen beschränken.
+        # identify the pixels that should be dashed
         selected = np.isin(masks, cell_ids)
         visible = (pattern > 0) & selected
 
@@ -2111,12 +2110,12 @@ class ImageEditingView(ft.Card):
         img_id = self._image_id
         seg_channel_id = self._seg_channel_id
 
-        # 1. Confidence-Maske bei Bedarf von der Festplatte laden
+        #load confidence mask from memory if not already done (confidence_mask_data == None)
         confidence_path = self._get_confidence_mask_path(
             img_id, seg_channel_id
         )
 
-        if (self._confidence_mask_data is None or self._confidence_mask_path != confidence_path):
+        if self._confidence_mask_data is None or self._confidence_mask_path != confidence_path:
             if confidence_path is None or not confidence_path.exists():
                 return
 
@@ -2125,7 +2124,7 @@ class ImageEditingView(ft.Card):
             )
             self._confidence_mask_path = confidence_path
 
-        # 2. Prüfen, ob die Daten ein Overlay enthalten
+
         if self._confidence_mask_data is None:
             return
 
@@ -2133,7 +2132,7 @@ class ImageEditingView(ft.Card):
         if overlay is None:
             return
 
-        # 3. Segmentierungsmaske muss noch die zu löschende Zelle enthalten
+
         if self._mask_data is None:
             print("Please load segmentation mask.")
             return
@@ -2141,15 +2140,16 @@ class ImageEditingView(ft.Card):
         masks = self._mask_data["masks"]
         outlines = self._mask_data["outlines"]
 
+        #get deleted piixels
         deleted_pixels = (
                 (masks == cell_id) | (outlines == cell_id)
         )
 
-        # 4. Confidence-Schraffur der Zelle entfernen
+        #delete dashed lines
         overlay[deleted_pixels] = 0
         self._confidence_mask_data["overlay"] = overlay
 
-        # 5. Aktualisierte Confidence-Maske speichern
+        # save updated mask
         await asyncio.to_thread(
             self._save_confidence_mask,
             img_id,
@@ -2157,7 +2157,7 @@ class ImageEditingView(ft.Card):
             self._confidence_mask_data,
         )
 
-        # 6. Anzeige nur aktualisieren, wenn sie aktiviert ist
+        #update visible mask
         if self._confidence_mask_button.icon_color == ft.Colors.WHITE:
             await self._load_confidence_mask_image(
                 img_id,
