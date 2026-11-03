@@ -273,7 +273,7 @@ class ImageEditingView(ft.Card):
     _error_manager = None
 
     @classmethod
-    def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction, flow_threshold,eval_without_threshold):
+    def update_settings(cls, margin, low, up, mode,max_pixel,max_fraction, flow_threshold,eval_without_threshold, low_conf_thresh):
         cls._margin = margin
         cls._lower_quantile = low
         cls._upper_quantile = up
@@ -282,6 +282,7 @@ class ImageEditingView(ft.Card):
         cls._max_fraction = max_fraction
         cls._flow_threshold = flow_threshold
         cls._eval_without_threshold = eval_without_threshold
+        cls._low_conf_threshold = low_conf_thresh
 
         for instance in cls._instances:
             instance.select_image(instance._image_id,instance._channel_id,instance._seg_channel_id,True)
@@ -485,6 +486,9 @@ class ImageEditingView(ft.Card):
 
     def set_main_paths(self, main_paths: list):
         self._main_paths = main_paths
+
+    def set_confidence_mask_paths(self, confidence_mask_paths: list):
+        self._confidence_mask_paths = confidence_mask_paths
 
     def set_confidence_mask_paths(self, confidence_mask_paths: list):
         self._confidence_mask_paths = confidence_mask_paths
@@ -1809,6 +1813,7 @@ class ImageEditingView(ft.Card):
         outlines = data["outlines"]
         dP = np.asarray(data["flows"][4][:2], dtype=np.float32)
         flow_threshold= 0.0 if ImageEditingView._eval_without_threshold else ImageEditingView._flow_threshold
+        low_conf_threshold =0.2
         print("flow_threshold", flow_threshold)
         print("Mask shape:", masks.shape)
         print("Mask ndim:", masks.ndim)
@@ -1850,10 +1855,14 @@ class ImageEditingView(ft.Card):
             cell_id for cell_id, error in errors_by_id.items()
             if error > flow_threshold
         ]
+        middle_confidence_ids = [
+            cell_id for cell_id, error in errors_by_id.items()
+            if flow_threshold >= error > low_conf_threshold
+        ]
 
         high_confidence_ids=[
             cell_id for cell_id, error in errors_by_id.items()
-            if error < flow_threshold
+            if error <= low_conf_threshold
         ]
 
         print("Zellen unter Flow-Threshold:", high_confidence_ids)
@@ -1868,18 +1877,26 @@ class ImageEditingView(ft.Card):
             low_overlay = self.create_dashed_mask(
                 mask_slice,
                 low_confidence_ids,
-                color=(0, 255, 255),
+                color=(255, 165, 0),
+            )
+
+            middle_overlay = self.create_dashed_mask(
+                mask_slice,
+                middle_confidence_ids,
+                color=(255, 210, 0),
             )
 
             high_overlay = self.create_dashed_mask(
                 mask_slice,
                 high_confidence_ids,
-                color=(255, 165, 0),
+                color=(0, 255, 255),
             )
 
             overlay = low_overlay.copy()
             high_pixels = high_overlay[:, :, 3] > 0
+            middle_pixels= middle_overlay[:, :, 3] > 0
             overlay[high_pixels] = high_overlay[high_pixels]
+            overlay[middle_pixels] = middle_overlay[middle_pixels]
 
             return overlay
 
