@@ -1813,7 +1813,7 @@ class ImageEditingView(ft.Card):
         outlines = data["outlines"]
         dP = np.asarray(data["flows"][4][:2], dtype=np.float32)
         flow_threshold= 0.0 if ImageEditingView._eval_without_threshold else ImageEditingView._flow_threshold
-        low_conf_threshold =0.2
+        low_conf_threshold =ImageEditingView._low_conf_threshold
         print("flow_threshold", flow_threshold)
         print("Mask shape:", masks.shape)
         print("Mask ndim:", masks.ndim)
@@ -1850,7 +1850,7 @@ class ImageEditingView(ft.Card):
             )
 
 
-        # Nur Zellen mit Flow-Fehler UNTER 0.4 markieren
+        # distingush error cells
         low_confidence_ids = [
             cell_id for cell_id, error in errors_by_id.items()
             if error > flow_threshold
@@ -1865,7 +1865,22 @@ class ImageEditingView(ft.Card):
             if error <= low_conf_threshold
         ]
 
+        for cell_id, error in sorted(errors_by_id.items()):
+            if error > flow_threshold:
+                confidence = "LOW"
+            elif error > low_conf_threshold:
+                confidence = "MIDDLE"
+            else:
+                confidence = "HIGH"
+
+            print(
+                f"Cell ID: {cell_id}, "
+                f"Flow Error: {error:.4f}, "
+                f"Confidence: {confidence}"
+            )
+
         print("Zellen unter Flow-Threshold:", high_confidence_ids)
+        print("Zellen in der mitte:", middle_confidence_ids)
         print("Zellen über Flow-Threshold:", low_confidence_ids)
 
         # Vorläufige IDs zum Testen; später durch die berechneten IDs ersetzen.
@@ -1877,19 +1892,19 @@ class ImageEditingView(ft.Card):
             low_overlay = self.create_dashed_mask(
                 mask_slice,
                 low_confidence_ids,
-                color=(255, 165, 0),
+                color=(0, 165, 255), #orange
             )
 
             middle_overlay = self.create_dashed_mask(
                 mask_slice,
                 middle_confidence_ids,
-                color=(255, 210, 0),
+                color=(50, 205, 50),#grün
             )
 
             high_overlay = self.create_dashed_mask(
                 mask_slice,
                 high_confidence_ids,
-                color=(0, 255, 255),
+                color=(55, 85, 125),#dark blue
             )
 
             overlay = low_overlay.copy()
@@ -1915,8 +1930,11 @@ class ImageEditingView(ft.Card):
             raise ValueError(f"Unknown mask shape: {masks.shape}")
 
         return {
+            "masks": masks.copy(),
+            "outlines": outlines.copy(),
             "overlay": overlay,
             "low_confidence_ids": low_confidence_ids,
+            "middle_confidence_ids": middle_confidence_ids,
             "high_confidence_ids": high_confidence_ids,
         }
 
